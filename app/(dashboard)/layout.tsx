@@ -1,20 +1,13 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { requireSession } from "@/lib/session";
 import Link from "next/link";
+import { OrgSwitcher } from "@/components/organizations/org-switcher";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session) {
-    redirect("/sign-in");
-  }
+  const { user, activeOrganizationId } = await requireSession();
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -25,25 +18,32 @@ export default async function DashboardLayout({
               AppFoundry
             </Link>
             <nav className="hidden sm:flex items-center gap-5 text-sm">
-              <Link href="/dashboard" className="text-slate-600 hover:text-black">
+              <Link
+                href="/dashboard"
+                className="text-slate-600 hover:text-black transition"
+              >
                 Projects
               </Link>
               <Link
                 href="/dashboard/organizations"
-                className="text-slate-600 hover:text-black"
+                className="text-slate-600 hover:text-black transition"
               >
                 Organizations
               </Link>
               <Link
                 href="/dashboard/settings"
-                className="text-slate-600 hover:text-black"
+                className="text-slate-600 hover:text-black transition"
               >
                 Settings
               </Link>
             </nav>
           </div>
-          <div className="text-sm text-slate-600">
-            {session.user.name || session.user.email}
+
+          <div className="flex items-center gap-4">
+            <OrgSwitcher activeOrganizationId={activeOrganizationId} />
+            <div className="text-sm text-slate-600 hidden sm:block">
+              {user.name || user.email}
+            </div>
           </div>
         </div>
       </header>

@@ -1,38 +1,76 @@
 # AppFoundry
 
-**AI App Making Platform** — Turn ideas into production-ready, monetizable apps with natural language.
+AI App-Making Platform — Turn ideas into production-ready, monetizable apps with natural language.
 
-Better than Emergent, Base44, and Replit in ownership, reliability, and creator monetization.
+AppFoundry helps creators, founders, and teams ship full-stack applications faster using AI-assisted planning, coding, testing, and deployment while preserving true code ownership and exportability.
 
-## Vision
+Why AppFoundry?
 
-- Multi-agent AI that plans, codes, tests, and deploys full-stack apps
-- True code ownership + export
-- Built-in multi-tenancy (organizations / workspaces)
-- Marketplace for templates & components
-- Monetization tools for the apps you ship
+- Multi-agent workflows that plan, scaffold, code, and test full-stack apps.
+- True code ownership: exportable project source so creators retain control.
+- Built-in multi-tenancy for organizations and workspaces.
+- Marketplace for templates, components, and monetization tools.
 
-## Tech Stack (MVP)
+Features (MVP)
 
-- **Framework**: Next.js 15 (App Router)
-- **Auth & Multi-tenancy**: Better Auth + Organization plugin
-- **Database**: PostgreSQL + Prisma
-- **UI**: Tailwind CSS + shadcn/ui
-- **File Storage**: Cloudflare R2 (planned)
-- **Payments**: Stripe (planned)
-- **AI**: Multi-agent orchestration (coming next)
+- Project scaffolding and templates
+- Authentication and organization-level access
+- PostgreSQL persistence via Prisma
+- Tailwind CSS + shadcn/ui for UI primitives
+- AI-assisted code generation and developer workflows (coming)
 
-## Getting Started
+Tech stack (MVP)
+
+- Framework: Next.js 15 (App Router)
+- Auth & Multi-tenancy: Better Auth + Organization plugin
+- Database: PostgreSQL + Prisma
+- UI: Tailwind CSS + shadcn/ui
+- File storage: Cloudflare R2 (planned)
+- Payments & billing: Stripe (planned)
+- AI: Multi-agent orchestration (roadmap)
+
+Quick start (Development)
+
+Prerequisites
+
+- Node.js 20+ and npm or pnpm
+- PostgreSQL (local or remote)
+- A Better Auth account / secrets (for auth integration)
+
+Local setup
+
+1. Install dependencies
 
 ```bash
 npm install
-cp .env.example .env.local
-# Fill in DATABASE_URL and Better Auth secrets
-npx prisma db push
-npm run dev
+# or
+# pnpm install
 ```
 
-## Project Structure
+2. Copy and configure environment variables
+
+```bash
+cp .env.example .env.local
+# Edit .env.local and set DATABASE_URL and Better Auth secrets
+```
+
+3. Prepare the database
+
+```bash
+npx prisma db push
+# or run migrations if you prefer
+# npx prisma migrate dev
+```
+
+4. Run the dev server
+
+```bash
+npm run dev
+# or
+# pnpm dev
+```
+
+Project structure
 
 ```
 appfoundry/
@@ -63,17 +101,42 @@ appfoundry/
 └── README.md
 ```
 
-## Roadmap
+Configuration
+
+- .env.example contains the environment variables used by the app. At minimum set:
+  - DATABASE_URL — Postgres connection string
+  - BETTER_AUTH_CLIENT_ID / BETTER_AUTH_CLIENT_SECRET (or equivalent)
+
+Development notes
+
+- The app uses Prisma for DB schema; prefer `prisma migrate` for production workflows.
+- Tailwind CSS is configured for JIT; update the config if adding new directories.
+- UI primitives live under `components/ui` (shadcn-style).
+
+Roadmap
 
 - [x] Repo scaffold
 - [ ] Better Auth + Organization multi-tenancy
 - [ ] Project model + dashboard
 - [ ] Basic AI chat → code generation
 - [ ] Multi-agent pipeline
-- [ ] Deploy + preview
-- [ ] Marketplace
-- [ ] Billing & credits
+- [ ] Deploy & preview environments
+- [ ] Marketplace for templates & components
+- [ ] Billing, payments & creator monetization
 
-## License
+Contributing
+
+Contributions are welcome. Suggested next steps:
+
+- Open an issue to propose big changes or features.
+- Submit a branch-based pull request with a clear description and tests for non-trivial behavior.
+
+If you'd like, I can add CONTRIBUTING.md, CODE_OF_CONDUCT.md, and a PR template.
+
+License
 
 MIT (for now)
+
+Contact
+
+For questions or to collaborate: create an issue or reach out to the repository owner.

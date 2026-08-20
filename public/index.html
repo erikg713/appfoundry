@@ -1,1 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AppFoundry — Turn ideas into production-ready, monetizable apps with natural language. Full-stack AI-assisted development with true code ownership." />
+  <title>AppFoundry — AI App-Making Platform</title>
 
+  <!-- Tailwind CSS via CDN for standalone use -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased">
+
+  <!-- Navigation -->
+  <nav class="fixed top-0 left-0 right-0 z-50 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <a href="/" class="text-xl font-semibold tracking-tight text-white">
+        AppFoundry
+      </a>
+      <div class="hidden items-center gap-8 text-sm font-medium text-slate-300 md:flex">
+        <a href="#features" class="hover:text-white transition">Features</a>
+        <a href="#why" class="hover:text-white transition">Why</a>
+        <a href="#roadmap" class="hover:text-white transition">Roadmap</a>
+        <a href="/sign-in" class="rounded-lg bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-500 transition">
+          Get Started
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="relative overflow-hidden pt-32 pb-24">
+    <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950"></div>
+    <div class="relative mx-auto max-w-4xl px-6 text-center">
+      <h1 class="text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl">
+        Turn ideas into<br />
+        <span class="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
+          production-ready apps
+        </span>
+      </h1>
+      <p class="mx-auto mt-6 max-w-2xl text-lg text-slate-400">
+        AppFoundry helps creators, founders, and teams ship full-stack applications faster using AI-assisted planning, coding, testing, and deployment — while preserving true code ownership and exportability.
+      </p>
+      <div class="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+        <a href="/sign-up" class="rounded-lg bg-indigo-600 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-indigo-500/25 hover:bg-indigo-500 transition">
+          Start Building
+        </a>
+        <a href="#features" class="rounded-lg border border-slate-700 px-8 py-3.5 text-base font-semibold text-slate-300 hover:border-slate-500 hover:text-white transition">
+          Learn More
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why AppFoundry -->
+  <section id="why" class="border-t border-slate-800/60 py-24">
+    <div class="mx-auto max-w-6xl px-6">
+      <h2 class="text-center text-3xl font-bold tracking-tight text-white">Why AppFoundry?</h2>
+      <div class="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+          <h3 class="text-lg font-semibold text-white">Multi-agent workflows</h3>
+          <p class="mt-3 text-sm text-slate-400">Plan, scaffold, code, and test full-stack apps with coordinated AI agents.</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+          <h3 class="text-lg font-semibold text-white">True code ownership</h3>
+          <p class="mt-3 text-sm text-slate-400">Exportable project source so creators retain complete control.</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+          <h3 class="text-lg font-semibold text-white">Built-in multi-tenancy</h3>
+          <p class="mt-3 text-sm text-slate-400">Organizations and workspaces ready out of the box.</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+          <h3 class="text-lg font-semibold text-white">Marketplace</h3>
+          <p class="mt-3 text-sm text-slate-400">Templates, components, and monetization tools for creators.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="border-t border-slate-800/60 py-24">
+    <div class="mx-auto max-w-6xl px-6">
+      <h2 class="text-center text-3xl font-bold tracking-tight text-white">Features (MVP)</h2>
+      <ul class="mx-auto mt-12 max-w-2xl space-y-4 text-slate-300">
+        <li class="flex items-start gap-3">
+          <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400"></span>
+          Project scaffolding and templates
+        </li>
+        <li class="flex items-start gap-3">
+          <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400"></span>
+          Authentication and organization-level access
+        </li>
+        <li class="flex items-start gap-3">
+          <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400"></span>
+          PostgreSQL persistence via Prisma
+        </li>
+        <li class="flex items-start gap-3">
+          <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400"></span>
+          Tailwind CSS + shadcn/ui for UI primitives
+        </li>
+        <li class="flex items-start gap-3">
+          <span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400"></span>
+          AI-assisted code generation and developer workflows
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Roadmap -->
+  <section id="roadmap" class="border-t border-slate-800/60 py-24">
+    <div class="mx-auto max-w-3xl px-6">
+      <h2 class="text-center text-3xl font-bold tracking-tight text-white">Roadmap</h2>
+      <ul class="mt-12 space-y-4 text-slate-300">
+        <li class="flex items-center gap-3">
+          <span class="text-slate-500">☐</span> Project model + dashboard
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="text-slate-500">☐</span> Basic AI chat → code generation
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="text-slate-500">☐</span> Multi-agent pipeline
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="text-slate-500">☐</span> Deploy & preview environments
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="text-slate-500">☐</span> Marketplace for templates & components
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="text-slate-500">☐</span> Billing, payments & creator monetization
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/60 py-12">
+    <div class="mx-auto max-w-6xl px-6 text-center text-sm text-slate-500">
+      <p>© 2026 AppFoundry. MIT License.</p>
+      <p class="mt-2">Built for creators who want to ship — and own — their software.</p>
+    </div>
+  </footer>
+
+</body>
+</html>

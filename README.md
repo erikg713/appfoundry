@@ -140,3 +140,96 @@ MIT (for now)
 Contact
 
 For questions or to collaborate: create an issue or reach out to the repository owner.
+# AppFoundry
+
+**AI App-Making Platform** — turn ideas into production-ready, monetizable apps with natural language.
+
+AppFoundry helps creators, founders, and teams ship full-stack applications faster using AI-assisted planning, coding, testing, and deployment, while preserving true code ownership and exportability.
+
+## Why AppFoundry?
+
+- **Multi-agent workflows** that plan, scaffold, code, test, and iterate full-stack applications.
+- **True code ownership** — every project is fully exportable source code the creator controls.
+- **Built-in multi-tenancy** for organizations, workspaces, and team collaboration.
+- **Marketplace** for templates, components, and monetization tools so creators can ship and earn.
+
+## Features (MVP)
+
+- Project scaffolding + templates
+- Authentication + organization-level access control
+- PostgreSQL persistence via Prisma
+- Tailwind CSS + shadcn/ui component library
+- AI-assisted code generation and developer workflows *(in progress)*
+
+## Roadmap
+
+- [ ] Project model + dashboard
+- [ ] Basic AI chat → code generation
+- [ ] Multi-agent pipeline
+- [ ] Deploy & preview environments
+- [ ] Marketplace for templates & components
+- [ ] Billing, payments & creator monetization
+
+## Tech Stack (MVP)
+
+| Layer | Choice |
+|---|---|
+| Framework | Next.js (App Router) |
+| Auth | Better Auth (organization multi-tenancy) |
+| Database | PostgreSQL + Prisma |
+| UI | Tailwind CSS + shadcn/ui |
+| Language | TypeScript |
+
+## Project Structure
+
+```
+appfoundry/
+├── app/                    # Next.js App Router
+│   ├── (auth)/             # Auth pages (sign-in, sign-up)
+│   ├── (dashboard)/        # Protected dashboard routes
+│   │   ├── projects/       # User projects
+│   │   ├── organizations/  # Org management
+│   │   └── settings/
+│   ├── api/                # API routes
+│   │   └── auth/           # Better Auth handler
+│   ├── layout.tsx
+│   └── page.tsx             # Landing page
+├── components/              # UI components
+│   ├── ui/                  # shadcn components
+│   ├── auth/
+│   └── organizations/
+├── lib/
+│   ├── auth.ts               # Better Auth config
+│   ├── auth-client.ts        # Client-side auth
+│   ├── db.ts                  # Prisma client
+│   └── utils.ts
+├── prisma/
+│   └── schema.prisma
+├── public/
+├── .env.example
+├── package.json
+└── README.md
+```
+
+## Getting Started
+
+1. Clone the repository.
+2. Copy `.env.example` to `.env` and fill in the required values.
+3. Install dependencies: `npm install` (or `pnpm` / `yarn`).
+4. Run database migrations: `npx prisma migrate dev`.
+5. Start the development server: `npm run dev`.
+
+## Contributing
+
+Contributions are welcome.
+
+- Open an issue to propose larger features or architectural changes.
+- Submit a branch-based pull request with a clear description and tests for non-trivial behavior.
+
+## License
+
+MIT (for now)
+
+## Contact
+
+For questions, bug reports, or feature requests, open a GitHub issue or start a discussion in the repo.

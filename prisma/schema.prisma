@@ -29,6 +29,8 @@ model Project {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  generationRuns GenerationRun[]
+
   // After Better Auth generate, you can wire:
   // organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   // createdBy    User?         @relation(fields: [createdById], references: [id])
@@ -37,4 +39,55 @@ model Project {
   @@index([organizationId])
   @@index([createdById])
   @@index([status])
+}
+
+model GenerationRun {
+  id          String    @id @default(cuid())
+  projectId   String
+  prompt      String
+  status      String    @default("pending") // pending | running | completed | failed | cancelled
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  steps   GenerationStep[]
+  files   GeneratedFile[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model GenerationStep {
+  id        String   @id @default(cuid())
+  runId     String
+  agent     String   // planner | architect | coder | tester | deployer
+  title     String
+  message   String?
+  status    String   @default("pending") // pending | running | completed | failed | skipped
+  order     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  run GenerationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([order])
+}
+
+model GeneratedFile {
+  id        String   @id @default(cuid())
+  runId     String
+  path      String
+  language  String?
+  content   String   @db.Text
+  size      Int      @default(0)
+  createdAt DateTime @default(now())
+
+  run GenerationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@unique([runId, path])
 }

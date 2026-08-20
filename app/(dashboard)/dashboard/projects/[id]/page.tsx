@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getProject } from "@/lib/projects";
+import { getLatestRun } from "@/lib/generation";
 import { ProjectActions } from "./project-actions";
+import { GenerationWorkspace } from "@/components/projects/generation-workspace";
 
 function statusBadge(status: string) {
   const styles: Record<string, string> = {
@@ -33,8 +35,10 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
+  const latestRun = await getLatestRun(id);
+
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-5xl">
       <div className="mb-6">
         <Link
           href="/dashboard"
@@ -89,14 +93,30 @@ export default async function ProjectDetailPage({
             </div>
           </div>
         </div>
-
-        <div className="mt-8 p-4 border border-dashed rounded-xl bg-slate-50 text-center">
-          <p className="text-sm text-slate-600">
-            AI generation workspace coming next — this is where agents will
-            plan, code, and deploy your app.
-          </p>
-        </div>
       </div>
+
+      <GenerationWorkspace
+        project={{
+          id: project.id,
+          name: project.name,
+          prompt: project.prompt,
+          status: project.status,
+        }}
+        initialRun={
+          latestRun
+            ? {
+                id: latestRun.id,
+                prompt: latestRun.prompt,
+                status: latestRun.status,
+                error: latestRun.error,
+                startedAt: latestRun.startedAt,
+                completedAt: latestRun.completedAt,
+                steps: latestRun.steps,
+                files: latestRun.files,
+              }
+            : null
+        }
+      />
     </div>
   );
 }

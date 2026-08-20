@@ -69,7 +69,7 @@ npm run dev
 # or
 # pnpm dev
 ```
-
+mkdir -p appfoundry/{app/{(auth)/{sign-in,sign-up},(dashboard)/{projects,organizations,settings},api/auth},components/{ui,auth,organizations},lib,prisma,public} && ls -la appfoundry/
 Project structure
 
 ```

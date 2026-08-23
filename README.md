@@ -1,1 +1,183 @@
-# AppFoundry 🏗️✨ — AI App-Making Platform for Creators & Teams  <p align=“center”>  <img src=“./public/appfoundry-logo.svg” alt=“AppFoundry” width=“180” />  </p>  <p align=“center”>  <b>Turn natural-language ideas into production-ready, monetizable full-stack apps.</b><br/>  AI-assisted planning, coding, testing & deployment — with <b>true code ownership</b>.  </p>  <p align=“center”>  <a href=“#features”>Features</a> ·  <a href=“#tech-stack”>Tech Stack</a> ·  <a href=“#quick-start”>Quick Start</a> ·  <a href=“#project-structure”>Project Structure</a> ·  <a href=“#roadmap”>Roadmap</a> ·  <a href=“#contributing”>Contributing</a>  </p>  ---  ## Why AppFoundry?  AppFoundry helps **creators, founders, and teams** ship full-stack applications faster using AI-assisted workflows while preserving complete control over their code.  - **🤖 Multi-Agent Workflows** — AI agents that plan, scaffold, code, test, and iterate full-stack applications end-to-end.  - **🔑 True Code Ownership** — Every project is fully exportable source code. You own it, you control it, you can take it anywhere.  - **🏢 Built-in Multi-Tenancy** — Native organization & workspace support for teams, with role-based access control.  - **🛒 Creator Marketplace** — Templates, components, and monetization tools so creators can ship faster and earn from their work.  ---  ## Features (MVP)  | Feature | Status | Description |  |---------|--------|-------------|  | **Project Scaffolding** | ✅ Ready | Generate Next.js projects with pre-configured stacks from natural language prompts. |  | **Templates** | ✅ Ready | Curated starter templates (SaaS, API, landing page, dashboard). |  | **Authentication** | ✅ Ready | Secure auth with email/password, OAuth, and organization-level access control. |  | **Organization Management** | ✅ Ready | Create workspaces, invite members, manage roles & permissions. |  | **PostgreSQL Persistence** | ✅ Ready | Type-safe database layer via Prisma ORM. |  | **UI Component Library** | ✅ Ready | Tailwind CSS + shadcn/ui primitives for rapid, consistent interfaces. |  | **AI Chat → Code** | 🚧 In Progress | Conversational AI that generates code, explains architecture, and suggests improvements. |  | **Multi-Agent Pipeline** | 📋 Planned | Orchestrated agents for planning, coding, testing, and deployment. |  | **Deploy & Preview** | 📋 Planned | One-click preview environments and production deployment. |  | **Marketplace** | 📋 Planned | Discover, buy, and sell templates, components, and integrations. |  | **Billing & Monetization** | 📋 Planned | Stripe-powered payments, subscriptions, and creator revenue sharing. |  ---  ## Tech Stack (MVP)  | Layer | Technology | Purpose |  |-------|------------|---------|  | **Framework** | [Next.js 15](https://nextjs.org/) (App Router) | Full-stack React framework with SSR, API routes, and file-based routing. |  | **Auth & Multi-Tenancy** | [Better Auth](https://www.better-auth.com/) + Organization Plugin | Secure authentication with built-in organization/workspace support. |  | **Database** | [PostgreSQL](https://www.postgresql.org/) + [Prisma](https://www.prisma.io/) | Relational data with type-safe ORM and migrations. |  | **UI & Styling** | [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) | Utility-first CSS and accessible, composable UI primitives. |  | **File Storage** | [Cloudflare R2](https://developers.cloudflare.com/r2/) *(planned)* | S3-compatible object storage for assets and exports. |  | **Payments** | [Stripe](https://stripe.com/) *(planned)* | Subscriptions, one-time purchases, and creator payouts. |  | **AI Orchestration** | Multi-Agent Pipeline *(roadmap)* | Coordinated AI agents for end-to-end app generation. |  ---  ## Project Structure  ```  appfoundry/  ├── app/                    # Next.js App Router  │   ├── (auth)/             # Auth pages (sign-in, sign-up, password reset)  │   │   ├── sign-in/  │   │   ├── sign-up/  │   │   └── forgot-password/  │   ├── (dashboard)/        # Protected dashboard routes  │   │   ├── projects/       # User projects list & management  │   │   ├── organizations/  # Org creation, invites, member management  │   │   └── settings/       # Account & workspace settings  │   ├── api/                # API routes  │   │   └── auth/           # Better Auth API handler (`[...all]`)  │   ├── layout.tsx          # Root layout with providers  │   └── page.tsx            # Landing / marketing page  ├── components/             # React components  │   ├── ui/                 # shadcn/ui components (Button, Card, Dialog, etc.)  │   ├── auth/               # Auth-specific components (SignInForm, OrgSwitcher)  │   ├── organizations/      # Org management UI (MemberList, InviteForm)  │   └── projects/           # Project cards, scaffolding wizard  ├── lib/                    # Utilities & configuration  │   ├── auth.ts             # Better Auth server config (plugins, callbacks)  │   ├── auth-client.ts      # Client-side auth hooks & helpers  │   ├── db.ts               # Prisma client singleton  │   └── utils.ts            # cn() helper, formatting utilities  ├── prisma/  │   └── schema.prisma       # Database schema (User, Organization, Project, etc.)  ├── public/                 # Static assets (logos, icons, illustrations)  ├── .env.example            # Required environment variables template  ├── package.json  └── README.md               # You are here!  ```  ---  ## Quick Start  ### Prerequisites  - **Node.js** 20+ and `npm`, `pnpm`, or `yarn`  - **PostgreSQL** 15+ (local via Docker, or a managed instance like Supabase, Neon, or Railway)  - **Better Auth secrets** (generated automatically on first setup)  ### 1. Clone the Repository  ```bash  git clone https://github.com/your-org/appfoundry.git  cd appfoundry  ```  ### 2. Install Dependencies  ```bash  npm install  # or  pnpm install  # or  yarn install  ```  ### 3. Configure Environment Variables  ```bash  cp .env.example .env  ```  Edit `.env` and fill in the required values:  ```env  # Database  DATABASE_URL=“postgresql://user:password@localhost:5432/appfoundry?schema=public”  # Better Auth  BETTER_AUTH_SECRET=“your-random-secret-key”  BETTER_AUTH_URL=“http://localhost:3000”  # OAuth Providers (optional)  GITHUB_CLIENT_ID=“”  GITHUB_CLIENT_SECRET=“”  GOOGLE_CLIENT_ID=“”  GOOGLE_CLIENT_SECRET=“”  # Optional: Stripe (for future billing)  STRIPE_SECRET_KEY=“”  STRIPE_WEBHOOK_SECRET=“”  ```  > 💡 **Tip:** Generate a secure `BETTER_AUTH_SECRET` with: `openssl rand -base64 32`  ### 4. Run Database Migrations  ```bash  npx prisma migrate dev --name init  ```  ### 5. Seed the Database (Optional)  ```bash  npx prisma db seed  ```  ### 6. Start the Development Server  ```bash  npm run dev  # or  pnpm dev  ```  Visit [http://localhost:3000](http://localhost:3000) to see AppFoundry in action.  ---  ## Database Schema  The Prisma schema defines core entities for multi-tenant auth and project management:  ```prisma  model User {    id            String    @id @default(cuid())    email         String    @unique    name          String?    image         String?    emailVerified Boolean   @default(false)    createdAt     DateTime  @default(now())    updatedAt     DateTime  @updatedAt    organizations   OrganizationMember[]    projects        Project[]    accounts        Account[]    sessions        Session[]  }  model Organization {    id          String   @id @default(cuid())    name        String    slug        String   @unique    logo        String?    createdAt   DateTime @default(now())    members     OrganizationMember[]    projects    Project[]  }  model OrganizationMember {    id             String   @id @default(cuid())    organizationId String    userId         String    role           String   @default(“member”) // owner, admin, member    organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)    user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)    createdAt      DateTime @default(now())    @@unique([organizationId, userId])  }  model Project {    id             String   @id @default(cuid())    name           String    description    String?    slug           String   @unique    template       String   @default(“blank”) // blank, saas, api, landing    status         String   @default(“draft”) // draft, scaffolding, ready, archived    organizationId String?    ownerId        String    organization   Organization? @relation(fields: [organizationId], references: [id])    owner          User     @relation(fields: [ownerId], references: [id])    createdAt      DateTime @default(now())    updatedAt      DateTime @updatedAt  }  ```  ---  ## Authentication Flow  AppFoundry uses **Better Auth** with the Organization plugin for secure, multi-tenant authentication:  1. **Sign Up / Sign In** — Email/password or OAuth (GitHub, Google).  2. **Organization Creation** — Users can create workspaces and invite members.  3. **Role-Based Access** — `owner`, `admin`, and `member` roles with scoped permissions.  4. **Session Management** — Secure HTTP-only cookies with automatic refresh.  5. **Organization Switching** — Seamless context switching between personal and team workspaces.  ### Auth API Endpoints  | Endpoint | Method | Description |  |----------|--------|-------------|  | `/api/auth/sign-in/email` | POST | Email/password sign-in |  | `/api/auth/sign-up/email` | POST | Email/password registration |  | `/api/auth/sign-out` | POST | End session |  | `/api/auth/session` | GET | Current session info |  | `/api/auth/organization/create` | POST | Create new organization |  | `/api/auth/organization/invite-member` | POST | Invite user by email |  | `/api/auth/organization/update-member` | POST | Update member role |  ---  ## Roadmap  ### Phase 1: Foundation (MVP) — Current  - [x] Next.js 15 + App Router scaffold  - [x] Better Auth integration with organization support  - [x] Prisma + PostgreSQL schema  - [x] Tailwind CSS + shadcn/ui component system  - [x] Project scaffolding & template selection  - [x] Organization dashboard & member management  - [ ] AI chat interface for code generation  - [ ] Basic code export & download  ### Phase 2: AI-Powered Development  - [ ] Conversational AI agent for architecture planning  - [ ] Automated code scaffolding from natural language  - [ ] Multi-file generation with dependency awareness  - [ ] In-browser code preview & editing  - [ ] Iterative refinement loop (generate → review → improve)  ### Phase 3: Multi-Agent Pipeline  - [ ] **Planner Agent** — Breaks ideas into technical specs & architecture  - [ ] **Scaffolder Agent** — Generates project structure & boilerplate  - [ ] **Coder Agent** — Writes feature-specific code with tests  - [ ] **Reviewer Agent** — Audits code quality, security, & performance  - [ ] **Deployer Agent** — Prepares preview & production builds  ### Phase 4: Marketplace & Monetization  - [ ] Template marketplace (browse, purchase, submit)  - [ ] Component library marketplace  - [ ] Creator profiles & analytics  - [ ] Stripe billing integration  - [ ] Revenue sharing for template/component creators  ### Phase 5: Scale & Enterprise  - [ ] Self-hosted deployment option  - [ ] Advanced audit logging & compliance  - [ ] SSO/SAML for enterprise organizations  - [ ] Custom AI model fine-tuning per organization  ---  ## Architecture  ### Multi-Tenancy Model  AppFoundry implements **organization-based multi-tenancy**:  ```  ┌─────────────────────────────────────────┐  │           AppFoundry Platform           │  ├─────────────────────────────────────────┤  │  Organization A (acme-corp)             │  │  ├── Project: SaaS Dashboard            │  │  ├── Project: API Service               │  │  └── Members: 5 (1 owner, 2 admins)     │  ├─────────────────────────────────────────┤  │  Organization B (startup-x)             │  │  ├── Project: Landing Page              │  │  └── Members: 2 (1 owner, 1 member)     │  ├─────────────────────────────────────────┤  │  Personal Workspace (user-123)          │  │  └── Project: Side Project              │  └─────────────────────────────────────────┘  ```  Each organization is a logical tenant with isolated projects, members, and (future) billing.  ### AI Agent Design (Planned)  ```  User Input: “Build a SaaS with auth, billing, and a dashboard”  │  ▼  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │   Planner   │ → │ Scaffolder  │ → │   Coder     │  │   Agent     │    │   Agent     │    │   Agent     │  └─────────────┘    └─────────────┘    └─────────────┘  │                       │                       │  ▼                       ▼                       ▼  Tech Spec          Project Structure      Feature Code  Architecture          Boilerplate            + Tests  DB Schema            Config Files           API Routes  Dependencies         UI Components          Business Logic  │                       │                       │  └───────────────────────┴───────────────────────┘  │  ▼  ┌─────────────┐    ┌─────────────┐  │  Reviewer   │ → │  Deployer   │  │   Agent     │    │   Agent     │  └─────────────┘    └─────────────┘  │                       │  ▼                       ▼  Quality Audit        Preview Build  Security Check       Production Deploy  Performance Analysis   Live URL  ```  ---  ## Contributing  We welcome contributions from the community! Here's how to get involved:  ### Getting Started  1. **Fork** the repository and clone your fork.  2. **Create a branch** for your feature or fix: `git checkout -b feature/your-feature-name`.  3. **Install dependencies** and set up your local environment (see [Quick Start](#quick-start)).  4. **Make your changes** with clear, descriptive commits.  5. **Add tests** for non-trivial behavior.  6. **Open a Pull Request** with a detailed description of your changes.  ### Guidelines  - Follow the existing **TypeScript** and **Tailwind CSS** conventions.  - Use **shadcn/ui** components where possible; create custom ones only when necessary.  - Ensure **Prisma migrations** are included for any schema changes.  - Write **clear commit messages** following [Conventional Commits](https://www.conventionalcommits.org/).  - Update **documentation** (README, comments) for user-facing changes.  ### Reporting Issues  - **Bugs:** Use the bug report template with reproduction steps.  - **Features:** Open a discussion first for large architectural changes.  - **Security:** Email security@appfoundry.dev privately (do not open public issues).  ---  ## License  [MIT](LICENSE) — Open source and free to use, modify, and distribute.  ---  ## Contact & Community  - **GitHub Discussions:** [github.com/your-org/appfoundry/discussions](https://github.com/your-org/appfoundry/discussions)  - **Discord:** [discord.gg/appfoundry](https://discord.gg/appfoundry) *(coming soon)*  - **Twitter/X:** [@AppFoundryDev](https://twitter.com/AppFoundryDev)  - **Email:** hello@appfoundry.dev  ---  <p align=“center”>  <i>Built with ❤️ for creators who ship.</i><br/>  <b>Star ⭐ this repo if AppFoundry helps you build faster!</b>  </p>  
+# AppFoundry #
+-----------------
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-20+-brightgreen)]()
+[![Status](https://img.shields.io/badge/status-alpha-orange)]()
+
+AI App-Making Platform — turn ideas into production-ready, monetizable apps using natural language.
+
+AppFoundry helps creators, founders, and teams ship full‑stack applications faster using AI-assisted planning, scaffolding, coding, testing, and deployment — while preserving true code ownership and exportability.
+
+Table of contents
+- [Why AppFoundry?](#why-appfoundry)
+- [Features (MVP)](#features-mvp)
+- [Tech stack (MVP)](#tech-stack-mvp)
+- [Project structure](#project-structure)
+- [Quick start (Development)](#quick-start-development)
+  - [Prerequisites](#prerequisites)
+  - [Local setup](#local-setup)
+  - [Database](#database)
+  - [Run the app](#run-the-app)
+- [Environment variables](#environment-variables)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Security](#security)
+- [License](#license)
+- [Contact](#contact)
+
+Why AppFoundry?
+- Multi-agent workflows that plan, scaffold, code, test, and iterate full-stack applications.
+- True code ownership — projects are exportable source code that creators control.
+- Built-in multi-tenancy for organizations, workspaces, and team collaboration.
+- Marketplace for templates, components, and monetization tools.
+
+Features (MVP)
+- Project scaffolding and templates
+- Authentication and organization-level access control
+- PostgreSQL persistence via Prisma
+- Tailwind CSS + shadcn/ui primitives
+- AI-assisted code generation and developer workflows (in progress)
+
+Tech stack (MVP)
+- Framework: Next.js (App Router)
+- Auth & multi-tenancy: Better Auth + organization plugin (planned integration)
+- Database: PostgreSQL + Prisma
+- UI: Tailwind CSS + shadcn/ui
+- Language: TypeScript
+- Storage: Cloudflare R2 (planned)
+- Billing: Stripe (planned)
+
+Project structure
+```
+appfoundry/
+├── app/                    # Next.js App Router
+│   ├── (auth)/             # Auth pages (sign-in, sign-up)
+│   ├── (dashboard)/        # Protected dashboard routes
+│   │   ├── projects/
+│   │   ├── organizations/
+│   │   └── settings/
+│   ├── api/                # API routes (e.g., auth handlers)
+│   ├── layout.tsx
+│   └── page.tsx            # Landing or marketing page
+├── components/             # UI components (shadcn-style)
+│   ├── ui/
+│   ├── auth/
+│   └── organizations/
+├── lib/                    # Helpers, db client, auth config
+│   ├── auth.ts
+│   ├── auth-client.ts
+│   ├── db.ts
+│   └── utils.ts
+├── prisma/                 # Prisma schema & migrations
+│   └── schema.prisma
+├── public/
+├── .env.example
+├── package.json
+└── README.md
+```
+
+Quick start (Development)
+
+Prerequisites
+- Node.js 20+
+- npm or pnpm
+- PostgreSQL (local or remote)
+- Better Auth account / credentials (for auth integration)
+
+Local setup
+
+1. Clone the repo
+```bash
+git clone https://github.com/erikg713/appfoundry.git
+cd appfoundry
+```
+
+2. Install dependencies
+```bash
+npm install
+# or
+# pnpm install
+```
+
+3. Copy and configure environment variables
+```bash
+cp .env.example .env.local
+# Edit .env.local and set DATABASE_URL and Better Auth secrets
+```
+
+Environment variables
+(keep this list in sync with `.env.example`) — examples:
+- DATABASE_URL=postgresql://user:pass@localhost:5432/appfoundry
+- BETTER_AUTH_CLIENT_ID=...
+- BETTER_AUTH_CLIENT_SECRET=...
+- NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+Database
+- For development, use Prisma:
+```bash
+npx prisma migrate dev --name init
+# or if you prefer to push schema without migrations:
+# npx prisma db push
+```
+- To inspect the DB schema:
+```bash
+npx prisma studio
+```
+
+Run the app
+```bash
+npm run dev
+# or
+# pnpm dev
+```
+Open http://localhost:3000
+
+Testing
+- Add tests and run:
+```bash
+npm test
+# or your chosen test runner (Vitest/Jest)
+```
+(There are no tests yet — adding tests is on the roadmap.)
+
+Deployment
+- Recommended: Vercel for Next.js (App Router) — configure environment variables in the Vercel dashboard.
+- Alternatives: Docker + any cloud provider.
+- Ensure Prisma migrations run in your deployment pipeline or use a managed DB with migrations applied prior to release.
+
+Roadmap
+- [x] Repo scaffold
+- [ ] Better Auth + organization multi-tenancy
+- [ ] Project model + dashboard
+- [ ] Basic AI chat → code generation
+- [ ] Multi-agent pipeline
+- [ ] Deploy & preview environments
+- [ ] Marketplace for templates & components
+- [ ] Billing, payments & creator monetization
+
+Contributing
+- Welcome! Please:
+  1. Open an issue for large changes or feature requests.
+  2. Create a branch per feature/fix and open a PR.
+  3. Add tests for non-trivial changes.
+- Consider adding CONTRIBUTING.md, CODE_OF_CONDUCT.md, and PR templates (I can add those for you).
+
+Security
+- For sensitive issues, please use a private security disclosure channel (e.g., a security email) or open a GitHub Security Advisory.
+- Do not commit secrets or .env files.
+
+Suggestions & housekeeping
+- Remove duplicate or experimental content from the README (this file).
+- Keep `.env.example` up to date with required variables and example values.
+- Add CI (GitHub Actions) to run lint, typecheck, tests, and Prisma migrations.
+- Add a small demo screenshot or link to a live preview if available.
+- Add badges for CI, coverage, and license.
+
+License
+MIT (for now) — see LICENSE file.
+
+Contact
+For questions, bug reports, or feature requests, open a GitHub issue or create a discussion in this repository.
+```

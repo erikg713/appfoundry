@@ -66,6 +66,7 @@ model GenerationStep {
   agent     String   // planner | architect | coder | tester | deployer
   title     String
   message   String?
+  output    String?  @db.Text // live streamed agent output
   status    String   @default("pending") // pending | running | completed | failed | skipped
   order     Int
   createdAt DateTime @default(now())

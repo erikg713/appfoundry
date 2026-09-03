@@ -1,0 +1,161 @@
+// database/Build.prisma
+//
+// AppFoundry — Build persistence model
+// Tracks an isolated application build produced by the agent pipeline.
+//
+// Expected workflow:
+// AgentRun → Build → install → lint → typecheck → test → build → artifact
+//
+
+enum BuildStatus {
+  QUEUED
+  PREPARING
+  INSTALLING
+  LINTING
+  TYPECHECKING
+  TESTING
+  BUILDING
+  PACKAGING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum BuildTrigger {
+  AGENT
+  USER
+  API
+  AUTOMATION
+  RETRY
+}
+
+enum BuildEnvironment {
+  DEVELOPMENT
+  PREVIEW
+  PRODUCTION
+  TEST
+}
+
+model Build {
+  id String @id @default(cuid())
+
+  // Ownership / project context
+  userId String
+  projectId String?
+  projectVersionId String?
+  agentRunId String?
+
+  // Build state
+  status BuildStatus @default(QUEUED)
+  trigger BuildTrigger @default(AGENT)
+  environment BuildEnvironment @default(PREVIEW)
+
+  // Human-readable identifiers
+  buildNumber Int?
+  name String?
+
+  // Source information
+  sourceCommit String?
+  sourceHash String?
+  sourcePath String?
+  framework String?
+  packageManager String?
+  nodeVersion String?
+  runtimeVersion String?
+
+  // Build configuration
+  command String?
+  installCommand String?
+  outputDirectory String?
+  buildConfig Json?
+
+  // Execution timing
+  queuedAt DateTime @default(now())
+  startedAt DateTime?
+  finishedAt DateTime?
+  durationMs Int?
+
+  // Progress
+  progress Int @default(0)
+  currentStep String?
+  currentStepIndex Int @default(0)
+  totalSteps Int @default(7)
+
+  // Validation results
+  lintSucceeded Boolean?
+  typecheckSucceeded Boolean?
+  testsSucceeded Boolean?
+  buildSucceeded Boolean?
+
+  testsPassed Int @default(0)
+  testsFailed Int @default(0)
+  testsSkipped Int @default(0)
+
+  // Build output
+  outputPath String?
+  artifactPath String?
+  artifactUrl String?
+  artifactSizeBytes BigInt?
+
+  // Logs
+  installLog String? @db.Text
+  lintLog String? @db.Text
+  typecheckLog String? @db.Text
+  testLog String? @db.Text
+  buildLog String? @db.Text
+
+  // Error information
+  errorCode String?
+  errorMessage String? @db.Text
+  errorStack String? @db.Text
+
+  // Resource usage
+  cpuTimeMs Int?
+  memoryPeakBytes BigInt?
+  diskUsageBytes BigInt?
+
+  // Retry / cancellation
+  attempt Int @default(1)
+  maxAttempts Int @default(3)
+  cancelRequested Boolean @default(false)
+
+  // Build metadata
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  project Project? @relation(
+    fields: [projectId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  projectVersion ProjectVersion? @relation(
+    fields: [projectVersionId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  agentRun AgentRun? @relation(
+    fields: [agentRunId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  @@unique([projectId, buildNumber])
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([projectVersionId])
+  @@index([agentRunId])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([environment, status])
+  @@index([sourceHash])
+  @@index([buildNumber])
+
+  @@map("builds")
+}

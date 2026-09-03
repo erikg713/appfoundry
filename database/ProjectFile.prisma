@@ -1,0 +1,182 @@
+// database/ProjectFile.prisma
+//
+// AppFoundry — Project file persistence model
+//
+// A ProjectFile represents one source/configuration file belonging to a
+// specific ProjectVersion.
+//
+// Lifecycle:
+//
+// Project
+//   └── ProjectVersion
+//          └── ProjectFile[]
+//                 ├── Coder creates/modifies
+//                 ├── Tester reads
+//                 └── Fixer modifies
+//
+// Files are version-scoped so every generated application can be reproduced
+// from a specific ProjectVersion.
+//
+
+enum ProjectFileStatus {
+  ACTIVE
+  DELETED
+}
+
+enum ProjectFileType {
+  SOURCE
+  CONFIG
+  ASSET
+  DOCUMENTATION
+  TEST
+  GENERATED
+  OTHER
+}
+
+enum ProjectFileLanguage {
+  TYPESCRIPT
+  JAVASCRIPT
+  TSX
+  JSX
+  PYTHON
+  CSS
+  SCSS
+  HTML
+  JSON
+  YAML
+  MARKDOWN
+  SQL
+  PRISMA
+  SHELL
+  SVG
+  IMAGE
+  OTHER
+}
+
+enum ProjectFileOrigin {
+  USER
+  PLANNER
+  ARCHITECT
+  CODER
+  TESTER
+  FIXER
+  IMPORT
+  SYSTEM
+}
+
+model ProjectFile {
+  id String @id @default(cuid())
+
+  // Project context
+  projectId String
+  projectVersionId String
+
+  // File identity
+  path String
+  name String
+  extension String?
+
+  // Classification
+  type ProjectFileType @default(SOURCE)
+  language ProjectFileLanguage @default(OTHER)
+  origin ProjectFileOrigin @default(CODER)
+
+  // File state
+  status ProjectFileStatus @default(ACTIVE)
+
+  // Source content
+  content String? @db.Text
+
+  // Content metadata
+  encoding String @default("utf-8")
+  lineCount Int?
+  sizeBytes Int?
+
+  // Integrity / change detection
+  checksum String?
+  contentHash String?
+
+  // File metadata
+  executable Boolean @default(false)
+  generated Boolean @default(false)
+  binary Boolean @default(false)
+
+  // Source mapping
+  previousFileId String?
+
+  // Agent metadata
+  createdByAgentRunId String?
+  modifiedByAgentRunId String?
+
+  // Optional arbitrary metadata
+  metadata Json?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // Relations
+  project Project @relation(
+    fields: [projectId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  projectVersion ProjectVersion @relation(
+    fields: [projectVersionId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  previousFile ProjectFile? @relation(
+    "ProjectFileHistory",
+    fields: [previousFileId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  nextFiles ProjectFile[] @relation("ProjectFileHistory")
+
+  createdByAgentRun AgentRun? @relation(
+    "AgentRunCreatedFiles",
+    fields: [createdByAgentRunId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  modifiedByAgentRun AgentRun? @relation(
+    "AgentRunModifiedFiles",
+    fields: [modifiedByAgentRunId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  // A path must be unique within a project version.
+  @@unique([projectVersionId, path])
+
+  // Fast project tree queries.
+  @@index([projectId, path])
+
+  @@index([
+    projectVersionId,
+    status
+  ])
+
+  @@index([
+    projectVersionId,
+    type
+  ])
+
+  @@index([
+    projectVersionId,
+    language
+  ])
+
+  @@index([createdByAgentRunId])
+  @@index([modifiedByAgentRunId])
+  @@index([previousFileId])
+  @@index([contentHash])
+
+  @@map("project_files")
+}

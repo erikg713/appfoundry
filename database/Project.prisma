@@ -1,0 +1,121 @@
+// database/Project.prisma
+//
+// AppFoundry — Project persistence model
+//
+// Project
+//   ├── ProjectVersion[]
+//   │      ├── ProjectFile[]
+//   │      └── Build[]
+//   ├── AgentRun[]
+//   ├── Build[]
+//   └── Deployment[]
+//
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+  DELETED
+}
+
+enum ProjectVisibility {
+  PRIVATE
+  UNLISTED
+  PUBLIC
+}
+
+enum ProjectFramework {
+  NEXTJS
+  REACT
+  VITE
+  NODE
+  EXPRESS
+  FASTAPI
+  FLASK
+  OTHER
+}
+
+model Project {
+  id String @id @default(cuid())
+
+  // Ownership
+  userId String
+
+  // Basic project information
+  name String
+  slug String
+  description String? @db.Text
+
+  // Project state
+  status ProjectStatus @default(ACTIVE)
+  visibility ProjectVisibility @default(PRIVATE)
+
+  // Technology
+  framework ProjectFramework @default(NEXTJS)
+  frameworkVersion String?
+
+  language String @default("typescript")
+  packageManager String @default("npm")
+  nodeVersion String?
+
+  // Repository / source metadata
+  repositoryUrl String?
+  repositoryProvider String?
+  repositoryId String?
+  defaultBranch String @default("main")
+
+  // Project configuration
+  config Json?
+  settings Json?
+  environmentConfig Json?
+
+  // Current pointers
+  currentVersionId String?
+  currentBuildId String?
+  productionDeploymentId String?
+
+  // Activity
+  lastActivityAt DateTime?
+  lastBuildAt DateTime?
+  lastDeployedAt DateTime?
+
+  // Soft deletion / archival
+  archivedAt DateTime?
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(
+    fields: [userId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  versions ProjectVersion[] @relation("ProjectVersions")
+
+  currentVersion ProjectVersion? @relation(
+    "ProjectCurrentVersion",
+    fields: [currentVersionId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  builds Build[]
+
+  deployments Deployment[]
+
+  agentRuns AgentRun[]
+
+  // Useful for project listing / dashboard
+  @@unique([userId, slug])
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, status])
+  @@index([status, lastActivityAt(sort: Desc)])
+  @@index([currentVersionId])
+  @@index([currentBuildId])
+  @@index([productionDeploymentId])
+
+  @@map("projects")
+}

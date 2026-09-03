@@ -1,0 +1,209 @@
+// database/AgentRun.prisma
+//
+// AppFoundry — Agent execution model
+//
+// Stores durable state for:
+// Planner → Architect → Coder → Tester → Fixer → Complete
+//
+// This model intentionally does NOT store API keys, OAuth tokens,
+// access tokens, passwords, or other credentials.
+
+enum AgentRunStatus {
+  QUEUED
+  PLANNING
+  ARCHITECTING
+  CODING
+  TESTING
+  FIXING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AgentType {
+  PLANNER
+  ARCHITECT
+  CODER
+  TESTER
+  FIXER
+}
+
+enum AgentRunTrigger {
+  USER
+  API
+  AUTOMATION
+  RETRY
+}
+
+model AgentRun {
+  id String @id @default(cuid())
+
+  /**
+   * Ownership
+   */
+  userId String
+  projectId String?
+
+  /**
+   * Optional version associated with this execution.
+   */
+  projectVersionId String?
+
+  /**
+   * Pipeline state
+   */
+  status AgentRunStatus @default(QUEUED)
+
+  currentAgent AgentType?
+
+  trigger AgentRunTrigger @default(USER)
+
+  /**
+   * User's original build request.
+   */
+  prompt String @db.Text
+
+  /**
+   * Agent-generated plan / architecture / result.
+   *
+   * Keeping these as JSON makes the pipeline extensible without
+   * constantly changing the schema.
+   */
+  plan Json?
+
+  architecture Json?
+
+  result Json?
+
+  /**
+   * Execution metadata
+   */
+  progress Int @default(0)
+
+  currentStep Int @default(0)
+
+  totalSteps Int @default(6)
+
+  iteration Int @default(0)
+
+  maxIterations Int @default(3)
+
+  /**
+   * Timing
+   */
+  queuedAt DateTime @default(now())
+
+  startedAt DateTime?
+
+  completedAt DateTime?
+
+  cancelledAt DateTime?
+
+  /**
+   * Error information.
+   *
+   * Store safe diagnostic information only.
+   * Never persist secrets or provider credentials.
+   */
+  errorCode String?
+
+  errorMessage String? @db.Text
+
+  /**
+   * Usage accounting.
+   *
+   * These are nullable because not every provider reports
+   * every usage metric.
+   */
+  inputTokens Int @default(0)
+
+  outputTokens Int @default(0)
+
+  totalTokens Int @default(0)
+
+  estimatedCost Decimal? @db.Decimal(18, 8)
+
+  /**
+   * Build/test results.
+   */
+  filesCreated Int @default(0)
+
+  filesModified Int @default(0)
+
+  filesDeleted Int @default(0)
+
+  testsPassed Int @default(0)
+
+  testsFailed Int @default(0)
+
+  testsSkipped Int @default(0)
+
+  buildSucceeded Boolean?
+
+  typecheckSucceeded Boolean?
+
+  lintSucceeded Boolean?
+
+  /**
+   * Cancellation / concurrency protection.
+   */
+  cancelRequested Boolean @default(false)
+
+  lockedAt DateTime?
+
+  lockId String?
+
+  /**
+   * Flexible execution metadata.
+   *
+   * Do not put secrets here.
+   */
+  metadata Json?
+
+  /**
+   * Audit timestamps
+   */
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  /**
+   * Relations
+   *
+   * These relation names assume the corresponding models exist.
+   */
+  user User @relation(
+    fields: [userId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  project Project? @relation(
+    fields: [projectId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  projectVersion ProjectVersion? @relation(
+    fields: [projectVersionId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  /**
+   * Individual agent executions.
+   */
+  steps AgentRunStep[]
+
+  /**
+   * Useful indexes
+   */
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([currentAgent, status])
+  @@index([projectVersionId])
+  @@index([lockId])
+
+  @@map("agent_runs")
+}

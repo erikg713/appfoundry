@@ -1,0 +1,316 @@
+// database/Deployment.prisma
+//
+// AppFoundry — Deployment persistence model
+//
+// Lifecycle:
+// Build → Deployment → Provision → Deploy → Health Check → Ready
+//
+// Supports:
+// - Preview deployments
+// - Production deployments
+// - Custom domains
+// - Deployment providers
+// - Rollbacks
+// - Health checks
+// - Deployment logs
+// - Environment variables metadata
+// - Deployment URLs
+// - Version/build tracking
+//
+
+enum DeploymentStatus {
+  QUEUED
+  PROVISIONING
+  BUILDING
+  DEPLOYING
+  HEALTH_CHECKING
+  READY
+  FAILED
+  STOPPING
+  STOPPED
+  ROLLING_BACK
+  ROLLED_BACK
+  CANCELLED
+}
+
+enum DeploymentEnvironment {
+  PREVIEW
+  STAGING
+  PRODUCTION
+}
+
+enum DeploymentTrigger {
+  USER
+  AGENT
+  API
+  AUTOMATION
+  GIT_PUSH
+  ROLLBACK
+  RETRY
+}
+
+enum DeploymentProvider {
+  VERCEL
+  NETLIFY
+  CLOUDFLARE
+  AWS
+  SUPABASE
+  RAILWAY
+  RENDER
+  CUSTOM
+}
+
+enum DeploymentHealthStatus {
+  UNKNOWN
+  CHECKING
+  HEALTHY
+  DEGRADED
+  UNHEALTHY
+}
+
+enum DeploymentDomainStatus {
+  PENDING
+  VERIFYING
+  ACTIVE
+  FAILED
+  REMOVED
+}
+
+model Deployment {
+  id String @id @default(cuid())
+
+  // Ownership / project context
+  userId String
+  projectId String
+  projectVersionId String?
+  buildId String?
+  agentRunId String?
+
+  // Deployment identity
+  name String?
+  environment DeploymentEnvironment @default(PREVIEW)
+  status DeploymentStatus @default(QUEUED)
+  trigger DeploymentTrigger @default(USER)
+  provider DeploymentProvider @default(CUSTOM)
+
+  // Provider-side identifiers
+  providerProjectId String?
+  providerDeploymentId String?
+  providerBuildId String?
+
+  // Source information
+  sourceCommit String?
+  sourceBranch String?
+  sourceHash String?
+
+  // Deployment URLs
+  deploymentUrl String?
+  previewUrl String?
+  productionUrl String?
+
+  // Primary domain
+  domain String?
+  domainStatus DeploymentDomainStatus?
+
+  // Runtime configuration
+  framework String?
+  runtime String?
+  nodeVersion String?
+  packageManager String?
+  buildCommand String?
+  startCommand String?
+  outputDirectory String?
+
+  // Deployment lifecycle timestamps
+  queuedAt DateTime @default(now())
+  startedAt DateTime?
+  readyAt DateTime?
+  finishedAt DateTime?
+
+  // Duration
+  durationMs Int?
+
+  // Health
+  healthStatus DeploymentHealthStatus @default(UNKNOWN)
+  lastHealthCheckAt DateTime?
+  healthCheckUrl String?
+  healthCheckResponseCode Int?
+  healthCheckLatencyMs Int?
+  healthCheckMessage String?
+
+  // Rollback tracking
+  isRollback Boolean @default(false)
+  rollbackOfId String?
+  rollbackReason String? @db.Text
+
+  // Deployment attempt / retry tracking
+  attempt Int @default(1)
+  maxAttempts Int @default(3)
+  cancelRequested Boolean @default(false)
+
+  // Logs
+  deploymentLog String? @db.Text
+  runtimeLog String? @db.Text
+  errorCode String?
+  errorMessage String? @db.Text
+  errorStack String? @db.Text
+
+  // Runtime / resource information
+  instanceCount Int?
+  memoryLimitMb Int?
+  cpuLimitMillicores Int?
+
+  // Configuration metadata
+  //
+  // Do not store plaintext secrets here.
+  // Store only variable names, references, hashes, or provider IDs.
+  environmentVariables Json?
+
+  // Provider response / deployment metadata
+  providerMetadata Json?
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(
+    fields: [userId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  project Project @relation(
+    fields: [projectId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  projectVersion ProjectVersion? @relation(
+    fields: [projectVersionId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  build Build? @relation(
+    fields: [buildId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  agentRun AgentRun? @relation(
+    fields: [agentRunId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  rollbackOf Deployment? @relation(
+    "DeploymentRollback",
+    fields: [rollbackOfId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  rollbacks Deployment[] @relation("DeploymentRollback")
+
+  domains DeploymentDomain[]
+
+  healthChecks DeploymentHealthCheck[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([projectId, createdAt(sort: Desc)])
+  @@index([projectVersionId])
+  @@index([buildId])
+  @@index([agentRunId])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([environment, status])
+  @@index([provider, providerDeploymentId])
+  @@index([sourceCommit])
+  @@index([rollbackOfId])
+
+  @@map("deployments")
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Deployment domains
+// ─────────────────────────────────────────────────────────────────────────────
+
+model DeploymentDomain {
+  id String @id @default(cuid())
+
+  deploymentId String
+
+  hostname String
+  status DeploymentDomainStatus @default(PENDING)
+
+  isPrimary Boolean @default(false)
+  isCustom Boolean @default(true)
+
+  verificationToken String?
+  verificationMethod String?
+
+  sslEnabled Boolean @default(false)
+  sslExpiresAt DateTime?
+
+  verifiedAt DateTime?
+  activatedAt DateTime?
+  removedAt DateTime?
+
+  errorMessage String? @db.Text
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deployment Deployment @relation(
+    fields: [deploymentId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  @@unique([deploymentId, hostname])
+  @@index([hostname])
+  @@index([status])
+  @@index([deploymentId, isPrimary])
+
+  @@map("deployment_domains")
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Deployment health checks
+// ─────────────────────────────────────────────────────────────────────────────
+
+model DeploymentHealthCheck {
+  id String @id @default(cuid())
+
+  deploymentId String
+
+  status DeploymentHealthStatus
+  url String
+
+  responseCode Int?
+  latencyMs Int?
+
+  responseBodyHash String?
+
+  message String? @db.Text
+  errorMessage String? @db.Text
+
+  checkedAt DateTime @default(now())
+
+  metadata Json?
+
+  deployment Deployment @relation(
+    fields: [deploymentId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  @@index([deploymentId, checkedAt(sort: Desc)])
+  @@index([status, checkedAt(sort: Desc)])
+
+  @@map("deployment_health_checks")
+}

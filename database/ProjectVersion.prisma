@@ -1,0 +1,181 @@
+// database/ProjectVersion.prisma
+//
+// AppFoundry — Project version persistence model
+//
+// A ProjectVersion is an immutable-ish snapshot of a project's source tree
+// and configuration at a point in the agent/build lifecycle.
+//
+// Project
+//   └── ProjectVersion
+//          ├── ProjectFile[]
+//          ├── AgentRun[]
+//          ├── Build[]
+//          └── Deployment[]
+//
+// Typical lifecycle:
+//
+// User Prompt
+//      ↓
+// Planner
+//      ↓
+// Architect
+//      ↓
+// Coder
+//      ↓
+// ProjectVersion
+//      ↓
+// Build
+//      ↓
+// Tester
+//      ↓
+// Fixer ──────────┐
+//      ↑           │
+//      └───────────┘
+//                  ↓
+//              Deployment
+//
+
+enum ProjectVersionStatus {
+  DRAFT
+  GENERATING
+  READY
+  BUILDING
+  TESTING
+  FAILED
+  DEPLOYED
+  ARCHIVED
+}
+
+enum ProjectVersionOrigin {
+  USER
+  IMPORT
+  PLANNER
+  ARCHITECT
+  CODER
+  TESTER
+  FIXER
+  SYSTEM
+}
+
+model ProjectVersion {
+  id String @id @default(cuid())
+
+  // Project ownership
+  projectId String
+
+  // Version identity
+  version Int
+  name String?
+  description String? @db.Text
+
+  // Lifecycle
+  status ProjectVersionStatus @default(DRAFT)
+  origin ProjectVersionOrigin @default(CODER)
+
+  // Version relationship
+  parentVersionId String?
+
+  // Agent context
+  createdByAgentRunId String?
+
+  // Source metadata
+  sourceHash String?
+  sourceCommit String?
+  sourceBranch String?
+
+  // Technology snapshot
+  framework String?
+  frameworkVersion String?
+  language String?
+  packageManager String?
+  nodeVersion String?
+
+  // Configuration snapshot
+  config Json?
+  metadata Json?
+
+  // Change statistics
+  filesCreated Int @default(0)
+  filesModified Int @default(0)
+  filesDeleted Int @default(0)
+  totalFiles Int @default(0)
+
+  // Build/test summary
+  lastBuildSucceeded Boolean?
+  lastTestsSucceeded Boolean?
+
+  testsPassed Int @default(0)
+  testsFailed Int @default(0)
+  testsSkipped Int @default(0)
+
+  // Lifecycle timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  generatedAt DateTime?
+  readyAt DateTime?
+  deployedAt DateTime?
+  archivedAt DateTime?
+
+  // Relations
+  project Project @relation(
+    "ProjectVersions",
+    fields: [projectId],
+    references: [id],
+    onDelete: Cascade
+  )
+
+  files ProjectFile[]
+
+  agentRuns AgentRun[]
+
+  builds Build[]
+
+  deployments Deployment[]
+
+  // Current-version reverse relation
+  currentForProjects Project[] @relation("ProjectCurrentVersion")
+
+  // Version history
+  parentVersion ProjectVersion? @relation(
+    "ProjectVersionHistory",
+    fields: [parentVersionId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  childVersions ProjectVersion[] @relation("ProjectVersionHistory")
+
+  createdByAgentRun AgentRun? @relation(
+    "ProjectVersionCreatedByAgentRun",
+    fields: [createdByAgentRunId],
+    references: [id],
+    onDelete: SetNull
+  )
+
+  // A project cannot have two versions with the same number.
+  @@unique([projectId, version])
+
+  @@index([
+    projectId,
+    createdAt(sort: Desc)
+  ])
+
+  @@index([
+    projectId,
+    status
+  ])
+
+  @@index([
+    projectId,
+    version
+  ])
+
+  @@index([parentVersionId])
+
+  @@index([createdByAgentRunId])
+
+  @@index([sourceHash])
+
+  @@map("project_versions")
+}

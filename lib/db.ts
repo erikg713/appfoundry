@@ -1,5 +1,3 @@
-// lib/db.ts
-
 import { PrismaClient, Prisma } from "@prisma/client";
 import { createHmac, timingSafeEqual } from "node:crypto";
 

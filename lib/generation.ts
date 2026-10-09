@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/session";
+import { checkGenerationRateLimit } from "@/lib/rate-limit";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isGenerationConfigured } from "@/lib/openai";
@@ -91,6 +92,15 @@ export async function startGeneration(input: z.infer<typeof startSchema>) {
   const prompt = (overridePrompt ?? project.prompt ?? "").trim();
   if (!prompt) {
     return { error: { prompt: ["A prompt is required to start generation"] } };
+  }
+
+  // Quota check: every generation burns OpenAI tokens, so enforce the
+  // per-user rate limit before creating the run. (requireSession is
+  // request-cached, so this adds no extra DB round trip.)
+  const { userId } = await requireSession();
+  const limit = await checkGenerationRateLimit(userId);
+  if (!limit.allowed) {
+    return { error: { _form: [limit.message] } };
   }
 
   // Prevent concurrent runs

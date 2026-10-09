@@ -2,7 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* Optimization & Performance */
-  swcMinify: true, // Faster minification via SWC
   poweredByHeader: false, // Security: hide Next.js version
   compress: true, // Enable Gzip compression by default
   
@@ -51,18 +50,10 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  /* Redirects for Auth Flow */
-  async redirects() {
-    return [
-      {
-        source: "/dashboard",
-        destination: "/dashboard/projects",
-        permanent: true,
-      },
-    ];
-  },
-
   /* Experimental Features (Next.js 15) */
   experimental: {
     optimizePackageImports: ["@radix-ui/react-*", "lucide-react"],
   },
+};
+
+export default nextConfig;

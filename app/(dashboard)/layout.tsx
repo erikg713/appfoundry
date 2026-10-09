@@ -1,6 +1,6 @@
 import { requireSession } from "@/lib/session";
 import Link from "next/link";
-import { OrgSwitcher } from "@/components/organizations/org-switcher";
+import { OrgSwitcher } from "@/components/organizations/organization-switcher";
 
 export default async function DashboardLayout({
   children,

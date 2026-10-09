@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { isGenerationConfigured } from "@/lib/openai";
 
 const AGENTS = [
   {
@@ -65,12 +66,23 @@ const startSchema = z.object({
 /**
  * Start a new generation run for a project.
  * Creates the run + ordered steps and sets project status to "generating".
- * Real agent orchestration can later replace the simulation path.
+ * The actual agent work streams from the LLM via the SSE endpoint
+ * (`/api/generation/[runId]/stream`), which the workspace UI subscribes to.
  */
 export async function startGeneration(input: z.infer<typeof startSchema>) {
   const parsed = startSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.flatten().fieldErrors };
+  }
+
+  if (!isGenerationConfigured()) {
+    return {
+      error: {
+        _form: [
+          "AI generation is not configured. Set OPENAI_API_KEY in the environment.",
+        ],
+      },
+    };
   }
 
   const { projectId, prompt: overridePrompt } = parsed.data;
@@ -133,82 +145,7 @@ export async function startGeneration(input: z.infer<typeof startSchema>) {
   return { data: run };
 }
 
-/**
- * Advance the simulation by one step.
- * In production this would be driven by real agent callbacks / a job queue.
- */
-export async function advanceGeneration(runId: string) {
-  const run = await prisma.generationRun.findUnique({
-    where: { id: runId },
-    include: {
-      steps: { orderBy: { order: "asc" } },
-      project: true,
-    },
-  });
-
-  if (!run) {
-    return { error: "Run not found" };
-  }
-
-  await assertProjectAccess(run.projectId);
-
-  if (run.status !== "running") {
-    return { data: run };
-  }
-
-  const currentIdx = run.steps.findIndex((s) => s.status === "running");
-  if (currentIdx === -1) {
-    // All done or stuck — mark completed
-    const updated = await finalizeRun(run.id, run.projectId, "completed");
-    return { data: updated };
-  }
-
-  const current = run.steps[currentIdx];
-  const next = run.steps[currentIdx + 1];
-
-  await prisma.$transaction(async (tx) => {
-    await tx.generationStep.update({
-      where: { id: current.id },
-      data: { status: "completed" },
-    });
-
-    if (next) {
-      await tx.generationStep.update({
-        where: { id: next.id },
-        data: { status: "running" },
-      });
-    } else {
-      // Last step finished — create sample artifacts and complete
-      await tx.generatedFile.createMany({
-        data: sampleFiles(run.id, run.prompt),
-      });
-      await tx.generationRun.update({
-        where: { id: run.id },
-        data: {
-          status: "completed",
-          completedAt: new Date(),
-        },
-      });
-      await tx.project.update({
-        where: { id: run.projectId },
-        data: { status: "ready" },
-      });
-    }
-  });
-
-  const refreshed = await prisma.generationRun.findUnique({
-    where: { id: runId },
-    include: {
-      steps: { orderBy: { order: "asc" } },
-      files: { orderBy: { path: "asc" } },
-    },
-  });
-
-  revalidatePath(`/dashboard/projects/${run.projectId}`);
-  return { data: refreshed };
-}
-
-async function finalizeRun(
+export async function finalizeRun(
   runId: string,
   projectId: string,
   status: "completed" | "failed" | "cancelled",
@@ -226,7 +163,12 @@ async function finalizeRun(
     await tx.project.update({
       where: { id: projectId },
       data: {
-        status: status === "completed" ? "ready" : status === "failed" ? "error" : "draft",
+        status:
+          status === "completed"
+            ? "ready"
+            : status === "failed"
+              ? "error"
+              : "draft",
       },
     });
   });
@@ -281,56 +223,4 @@ export async function getGenerationRuns(projectId: string) {
     },
     take: 20,
   });
-}
-
-function sampleFiles(runId: string, prompt: string) {
-  const short = prompt.slice(0, 80).replace(/\n/g, " ");
-  return [
-    {
-      runId,
-      path: "README.md",
-      language: "markdown",
-      content: `# Generated Application\n\n> Prompt: ${short}\n\nThis project was scaffolded by AppFoundry multi-agent pipeline.\n\n## Getting Started\n\n\`\`\`bash\nnpm install\nnpm run dev\n\`\`\`\n`,
-      size: 180,
-    },
-    {
-      runId,
-      path: "package.json",
-      language: "json",
-      content: JSON.stringify(
-        {
-          name: "generated-app",
-          version: "0.1.0",
-          private: true,
-          scripts: {
-            dev: "next dev",
-            build: "next build",
-            start: "next start",
-          },
-          dependencies: {
-            next: "^15.0.0",
-            react: "^19.0.0",
-            "react-dom": "^19.0.0",
-          },
-        },
-        null,
-        2
-      ),
-      size: 280,
-    },
-    {
-      runId,
-      path: "app/page.tsx",
-      language: "typescript",
-      content: `export default function HomePage() {\n  return (\n    <main className="min-h-screen flex items-center justify-center p-8">\n      <div className="max-w-xl text-center space-y-4">\n        <h1 className="text-3xl font-bold tracking-tight">Your App</h1>\n        <p className="text-slate-600">\n          Generated from: ${short.replace(/`/g, "'")}\n        </p>\n      </div>\n    </main>\n  );\n}\n`,
-      size: 320,
-    },
-    {
-      runId,
-      path: "app/layout.tsx",
-      language: "typescript",
-      content: `import type { Metadata } from "next";\nimport "./globals.css";\n\nexport const metadata: Metadata = {\n  title: "Generated App",\n  description: "Scaffolded by AppFoundry",\n};\n\nexport default function RootLayout({\n  children,\n}: {\n  children: React.ReactNode;\n}) {\n  return (\n    <html lang="en">\n      <body>{children}</body>\n    </html>\n  );\n}\n`,
-      size: 350,
-    },
-  ];
 }

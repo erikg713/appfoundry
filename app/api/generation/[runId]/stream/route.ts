@@ -1,5 +1,9 @@
 import { requireSession } from "@/lib/session";
 import { prisma } from "@/lib/db";
+import {
+  checkGenerationRateLimit,
+  generationRateLimitedResponse,
+} from "@/lib/rate-limit";
 import { streamGenerationRun, type StreamEvent } from "@/lib/generation-stream";
 
 export const runtime = "nodejs";
@@ -45,6 +49,15 @@ export async function GET(
         status: 403,
         headers: { "Content-Type": "application/json" },
       });
+    }
+
+    // Quota check: this stream is where OpenAI tokens are actually burned,
+    // so enforce the per-user rate limit before opening it. (The check is
+    // read-only, so the earlier check in startGeneration does not
+    // double-count this run.)
+    const limit = await checkGenerationRateLimit(userId);
+    if (!limit.allowed) {
+      return generationRateLimitedResponse(limit);
     }
 
     const encoder = new TextEncoder();

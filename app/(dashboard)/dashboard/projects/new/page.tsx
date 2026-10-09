@@ -107,7 +107,7 @@ export default function NewProjectPage() {
             placeholder="A simple CRM with contacts, deals, and a pipeline board. Users should be able to invite teammates..."
           />
           <p className="mt-1.5 text-xs text-slate-500">
-            This prompt will later drive the AI agents that generate your app.
+            This prompt drives the AI agents that generate your app.
           </p>
         </div>
 

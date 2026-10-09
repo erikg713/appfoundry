@@ -1,6 +1,5 @@
 import { requireSession } from "@/lib/session";
-import Link from "next/link";
-import { OrgSwitcher } from "@/components/organizations/organization-switcher";
+import { DashboardHeader } from "@/components/dashboard-header";
 
 export default async function DashboardLayout({
   children,
@@ -11,43 +10,14 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href="/dashboard" className="font-bold tracking-tight">
-              AppFoundry
-            </Link>
-            <nav className="hidden sm:flex items-center gap-5 text-sm">
-              <Link
-                href="/dashboard"
-                className="text-slate-600 hover:text-black transition"
-              >
-                Projects
-              </Link>
-              <Link
-                href="/dashboard/organizations"
-                className="text-slate-600 hover:text-black transition"
-              >
-                Organizations
-              </Link>
-              <Link
-                href="/dashboard/settings"
-                className="text-slate-600 hover:text-black transition"
-              >
-                Settings
-              </Link>
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <OrgSwitcher activeOrganizationId={activeOrganizationId} />
-            <div className="text-sm text-slate-600 hidden sm:block">
-              {user.name || user.email}
-            </div>
-          </div>
-        </div>
-      </header>
-      <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>
+      <DashboardHeader
+        userName={user.name}
+        userEmail={user.email}
+        activeOrganizationId={activeOrganizationId}
+      />
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {children}
+      </main>
     </div>
   );
 }

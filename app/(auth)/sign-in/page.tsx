@@ -67,8 +67,7 @@ export default function SignInPage() {
     } catch (err: unknown) {
       const message =
         err && typeof err === "object" && "message" in err
-          ? // @ts-expect-error runtime narrowing
-            (err as { message?: string }).message ?? "An unexpected error occurred. Please try again."
+          ? (err as { message?: string }).message ?? "An unexpected error occurred. Please try again."
           : "An unexpected error occurred. Please try again.";
 
       // set a generic field error so it appears and is announced. We set password to avoid leaking existence of email.

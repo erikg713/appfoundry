@@ -19,16 +19,16 @@ import {
 } from "lucide-react";
 
 async function getDashboardMetrics(userId: string) {
+  // Projects visible to the user: org projects they belong to + their own
+  // personal projects (organizationId = null).
+  const projectScope = {
+    OR: [
+      { organization: { members: { some: { userId } } } },
+      { organizationId: null, createdById: userId },
+    ],
+  };
   const [projectCount, memberships, recentProjects] = await Promise.all([
-    prisma.project.count({
-      where: {
-        organization: {
-          members: {
-            some: { userId },
-          },
-        },
-      },
-    }),
+    prisma.project.count({ where: projectScope }),
     prisma.member.findMany({
       where: { userId },
       include: {
@@ -36,13 +36,7 @@ async function getDashboardMetrics(userId: string) {
       },
     }),
     prisma.project.findMany({
-      where: {
-        organization: {
-          members: {
-            some: { userId },
-          },
-        },
-      },
+      where: projectScope,
       orderBy: { updatedAt: "desc" },
       take: 5,
       include: {
@@ -198,7 +192,7 @@ export default async function DashboardPage() {
                     <div>
                       <p className="font-medium">{project.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {project.organization.name} · {project.status}
+                        {project.organization?.name ?? "Personal"} · {project.status}
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground">

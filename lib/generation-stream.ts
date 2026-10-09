@@ -1,105 +1,168 @@
 import { prisma } from "@/lib/db";
+import { getOpenAI, GENERATION_MODEL } from "@/lib/openai";
 
-/** Progressive narratives produced while each agent "thinks". */
-export function agentNarrative(agent: string, prompt: string): string {
-  const brief = prompt.trim().slice(0, 120).replace(/\s+/g, " ");
-  const narratives: Record<string, string> = {
-    planner: [
-      `Reading brief: "${brief}${prompt.length > 120 ? "…" : ""}"`,
-      "Extracting primary users, goals, and hard constraints.",
-      "Drafting 6–8 user stories for the first shippable slice.",
-      "Cutting scope that would block an MVP demo.",
-      "Sequencing milestones: discover → scaffold → core flow → polish.",
-      "Plan locked. Handing off to Architect.",
-    ].join("\n"),
-    architect: [
-      "Mapping entities from the product plan.",
-      "Choosing a simple stack: Next.js App Router, Postgres, server actions.",
-      "Sketching routes and ownership boundaries.",
-      "Defining API surface and validation seams.",
-      "Architecture notes ready for Coder.",
-    ].join("\n"),
-    coder: [
-      "Scaffolding project layout and entry routes.",
-      "Generating core components for the primary user flow.",
-      "Wiring server actions and data access.",
-      "Writing README with install and run steps.",
-      "Source sketches complete.",
-    ].join("\n"),
-    tester: [
-      "Listing happy-path checks for the core flow.",
-      "Adding empty, error, and permission edge cases.",
-      "Including a 390px mobile smoke pass.",
-      "QA checklist ready for Deployer.",
-    ].join("\n"),
-    deployer: [
-      "Preparing environment variable checklist.",
-      "Defining preview and production deploy steps.",
-      "Writing a short ship checklist and rollback note.",
-      "Release path ready. Generation complete.",
-    ].join("\n"),
-  };
-  return narratives[agent] ?? `Working on ${agent}…`;
-}
+// ---------------------------------------------------------------------------
+// Agent system prompts. Each agent streams its working output to the UI;
+// downstream agents receive the earlier outputs as context.
+// ---------------------------------------------------------------------------
 
-export function chunkText(text: string, size = 12): string[] {
-  const chunks: string[] = [];
-  for (let i = 0; i < text.length; i += size) {
-    chunks.push(text.slice(i, i + size));
+const AGENT_SYSTEM_PROMPTS: Record<string, string> = {
+  planner: [
+    "You are the Planner agent in an AI app-building pipeline.",
+    "Given the user's app idea, produce a concise product plan:",
+    "target users, 6-8 user stories for the first shippable slice,",
+    "explicit non-goals to keep the MVP demoable, and a milestone sequence.",
+    "Keep it focused and skimmable. Do not write code.",
+  ].join(" "),
+  architect: [
+    "You are the Architect agent in an AI app-building pipeline.",
+    "Given the app idea and the Planner's output, define the technical plan:",
+    "stack (assume Next.js App Router + Postgres unless the idea demands otherwise),",
+    "data entities, routes/pages, API surface, and validation seams.",
+    "Keep it concrete and brief. Do not write full code files.",
+  ].join(" "),
+  coder: [
+    "You are the Coder agent in an AI app-building pipeline.",
+    "Given the app idea, plan, and architecture, sketch the key source files:",
+    "project layout, the main page/component, and one data-access or server-action example.",
+    "Write concise but real code snippets (TypeScript/React).",
+    "The full file set is generated separately — focus on the most important pieces.",
+  ].join(" "),
+  tester: [
+    "You are the Tester agent in an AI app-building pipeline.",
+    "Given the app idea and the Coder's output, produce a QA checklist:",
+    "happy-path checks for the core flow, edge cases (empty, error, permission),",
+    "and a mobile smoke pass. Keep it actionable and brief.",
+  ].join(" "),
+  deployer: [
+    "You are the Deployer agent in an AI app-building pipeline.",
+    "Given the app idea and everything built so far, produce a ship checklist:",
+    "required environment variables, preview and production deploy steps,",
+    "and a short rollback note. Keep it brief.",
+  ].join(" "),
+};
+
+const FILE_MANIFEST_SYSTEM_PROMPT = [
+  "You are a code generator producing the starter file set for a new app.",
+  "Respond with ONLY a JSON object of the form:",
+  '{"files": [{"path": "app/page.tsx", "language": "typescript", "content": "..."}]}',
+  "Rules:",
+  "- 4 to 10 files: README.md, package.json, and the essential source files.",
+  "- Paths are relative, no leading slash.",
+  "- Content must be complete and syntactically valid; keep each file focused.",
+  "- language is one of: typescript, json, markdown, css.",
+  "- No prose outside the JSON object.",
+].join("\n");
+
+const MAX_FILES = 10;
+const MAX_FILE_CHARS = 12_000;
+
+type GeneratedFileInput = {
+  runId: string;
+  path: string;
+  language: string | null;
+  content: string;
+  size: number;
+};
+
+/** Stream one agent's output tokens from the LLM. */
+async function* streamAgentOutput(
+  agent: string,
+  prompt: string,
+  priorOutputs: { agent: string; output: string }[]
+): AsyncGenerator<string> {
+  const openai = getOpenAI();
+  const system = AGENT_SYSTEM_PROMPTS[agent] ?? `You are the ${agent} agent in an AI app-building pipeline.`;
+
+  const context =
+    priorOutputs.length > 0
+      ? "\n\nEarlier agents produced:\n" +
+        priorOutputs
+          .map((p) => `## ${p.agent}\n${p.output.slice(0, 4000)}`)
+          .join("\n\n")
+      : "";
+
+  const stream = await openai.chat.completions.create({
+    model: GENERATION_MODEL,
+    temperature: 0.7,
+    max_tokens: 1500,
+    stream: true,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: `App idea:\n${prompt}${context}` },
+    ],
+  });
+
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content;
+    if (text) yield text;
   }
-  return chunks.length ? chunks : [""];
 }
 
-export function sampleFiles(runId: string, prompt: string) {
-  const short = prompt.slice(0, 80).replace(/\n/g, " ");
-  return [
-    {
-      runId,
-      path: "README.md",
-      language: "markdown",
-      content: `# Generated Application\n\n> Prompt: ${short}\n\nThis project was scaffolded by AppFoundry multi-agent pipeline.\n\n## Getting Started\n\n\`\`\`bash\nnpm install\nnpm run dev\n\`\`\`\n`,
-      size: 180,
-    },
-    {
-      runId,
-      path: "package.json",
-      language: "json",
-      content: JSON.stringify(
-        {
-          name: "generated-app",
-          version: "0.1.0",
-          private: true,
-          scripts: { dev: "next dev", build: "next build", start: "next start" },
-          dependencies: {
-            next: "^15.0.0",
-            react: "^19.0.0",
-            "react-dom": "^19.0.0",
-          },
-        },
-        null,
-        2
-      ),
-      size: 280,
-    },
-    {
-      runId,
-      path: "app/page.tsx",
-      language: "typescript",
-      content: `export default function HomePage() {\n  return (\n    <main className="min-h-screen flex items-center justify-center p-8">\n      <div className="max-w-xl text-center space-y-4">\n        <h1 className="text-3xl font-bold tracking-tight">Your App</h1>\n        <p className="text-slate-600">\n          Generated from: ${short.replace(/`/g, "'")}\n        </p>\n      </div>\n    </main>\n  );\n}\n`,
-      size: 320,
-    },
-    {
-      runId,
-      path: "app/layout.tsx",
-      language: "typescript",
-      content: `import type { Metadata } from "next";\nimport "./globals.css";\n\nexport const metadata: Metadata = {\n  title: "Generated App",\n  description: "Scaffolded by AppFoundry",\n};\n\nexport default function RootLayout({\n  children,\n}: {\n  children: React.ReactNode;\n}) {\n  return (\n    <html lang="en">\n      <body>{children}</body>\n    </html>\n  );\n}\n`,
-      size: 350,
-    },
-  ];
-}
+/** Generate the scaffold file set for a run via a structured JSON call. */
+async function generateFiles(
+  runId: string,
+  prompt: string,
+  summary: string
+): Promise<GeneratedFileInput[]> {
+  const openai = getOpenAI();
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  const response = await openai.chat.completions.create({
+    model: GENERATION_MODEL,
+    temperature: 0.5,
+    max_tokens: 6000,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: FILE_MANIFEST_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `App idea:\n${prompt}\n\nBuild summary:\n${summary.slice(0, 6000)}`,
+      },
+    ],
+  });
+
+  const raw = response.choices[0]?.message?.content ?? "{}";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("File generation returned invalid JSON");
+  }
+
+  const files = (parsed as { files?: unknown }).files;
+  if (!Array.isArray(files) || files.length === 0) {
+    throw new Error("File generation returned no files");
+  }
+
+  const cleaned: Omit<GeneratedFileInput, "runId">[] = [];
+  const seen = new Set<string>();
+  for (const f of files.slice(0, MAX_FILES)) {
+    const entry = f as { path?: unknown; language?: unknown; content?: unknown };
+    const path =
+      typeof entry.path === "string"
+        ? entry.path.replace(/^\/+/, "").trim()
+        : "";
+    const content = typeof entry.content === "string" ? entry.content : "";
+    if (!path || !content || seen.has(path)) continue;
+    // Basic path hygiene: no escapes, no absolute paths
+    if (path.includes("..") || path.length > 200) continue;
+    seen.add(path);
+    const language =
+      typeof entry.language === "string" ? entry.language : null;
+    const trimmed = content.slice(0, MAX_FILE_CHARS);
+    cleaned.push({
+      path,
+      language,
+      content: trimmed,
+      size: Buffer.byteLength(trimmed, "utf8"),
+    });
+  }
+
+  if (cleaned.length === 0) {
+    throw new Error("File generation produced no valid files");
+  }
+
+  return cleaned.map((f) => ({ ...f, runId }));
 }
 
 export type StreamEvent =
@@ -131,9 +194,38 @@ export type StreamEvent =
     }
   | { type: "error"; message: string };
 
+async function markCancelled(runId: string, projectId: string, stepId?: string, output?: string) {
+  if (stepId) {
+    await prisma.generationStep.update({
+      where: { id: stepId },
+      data: { output: output ?? "", status: "running" },
+    });
+  }
+  await prisma.generationRun.update({
+    where: { id: runId },
+    data: { status: "cancelled", completedAt: new Date() },
+  });
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { status: "draft" },
+  });
+}
+
+async function markFailed(runId: string, projectId: string, message: string) {
+  await prisma.generationRun.update({
+    where: { id: runId },
+    data: { status: "failed", completedAt: new Date(), error: message },
+  });
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { status: "error" },
+  });
+}
+
 /**
- * Drive a generation run, yielding SSE-friendly events while streaming
- * each agent's narrative and persisting progress to the database.
+ * Drive a generation run, streaming real LLM output per agent step and
+ * persisting progress to the database. Yields SSE-friendly events consumed
+ * by the generation workspace UI.
  */
 export async function* streamGenerationRun(
   runId: string,
@@ -166,22 +258,20 @@ export async function* streamGenerationRun(
     });
   }
 
+  const priorOutputs: { agent: string; output: string }[] = [];
+
   for (const step of run.steps) {
     if (signal?.aborted) {
-      await prisma.generationRun.update({
-        where: { id: runId },
-        data: { status: "cancelled", completedAt: new Date() },
-      });
-      await prisma.project.update({
-        where: { id: run.projectId },
-        data: { status: "draft" },
-      });
+      await markCancelled(runId, run.projectId);
       yield { type: "run_done", status: "cancelled" };
       return;
     }
 
     // Skip already completed steps (resume safety)
-    if (step.status === "completed") continue;
+    if (step.status === "completed") {
+      if (step.output) priorOutputs.push({ agent: step.agent, output: step.output });
+      continue;
+    }
 
     await prisma.generationStep.update({
       where: { id: step.id },
@@ -196,43 +286,44 @@ export async function* streamGenerationRun(
       order: step.order,
     };
 
-    const narrative = agentNarrative(step.agent, run.prompt);
-    const chunks = chunkText(narrative, 10);
     let full = "";
+    let lastPersisted = 0;
 
-    for (const chunk of chunks) {
-      if (signal?.aborted) break;
-      full += chunk;
-      yield {
-        type: "token",
-        stepId: step.id,
-        agent: step.agent,
-        text: chunk,
-        full,
-      };
-      // Persist periodically (every ~40 chars)
-      if (full.length % 40 < chunk.length) {
-        await prisma.generationStep.update({
-          where: { id: step.id },
-          data: { output: full },
-        });
+    try {
+      for await (const token of streamAgentOutput(step.agent, run.prompt, priorOutputs)) {
+        if (signal?.aborted) break;
+        full += token;
+        yield {
+          type: "token",
+          stepId: step.id,
+          agent: step.agent,
+          text: token,
+          full,
+        };
+        // Persist periodically so a dropped stream still leaves progress
+        if (full.length - lastPersisted > 500) {
+          lastPersisted = full.length;
+          await prisma.generationStep.update({
+            where: { id: step.id },
+            data: { output: full },
+          });
+        }
       }
-      await sleep(28);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "AI generation failed";
+      await prisma.generationStep.update({
+        where: { id: step.id },
+        data: { status: "failed", output: full },
+      });
+      await markFailed(runId, run.projectId, `${step.title}: ${message}`);
+      yield { type: "error", message: `${step.title} failed: ${message}` };
+      yield { type: "run_done", status: "failed", error: message };
+      return;
     }
 
     if (signal?.aborted) {
-      await prisma.generationStep.update({
-        where: { id: step.id },
-        data: { output: full, status: "running" },
-      });
-      await prisma.generationRun.update({
-        where: { id: runId },
-        data: { status: "cancelled", completedAt: new Date() },
-      });
-      await prisma.project.update({
-        where: { id: run.projectId },
-        data: { status: "draft" },
-      });
+      await markCancelled(runId, run.projectId, step.id, full);
       yield { type: "run_done", status: "cancelled" };
       return;
     }
@@ -242,6 +333,8 @@ export async function* streamGenerationRun(
       data: { status: "completed", output: full },
     });
 
+    priorOutputs.push({ agent: step.agent, output: full });
+
     yield {
       type: "step_done",
       stepId: step.id,
@@ -250,24 +343,47 @@ export async function* streamGenerationRun(
     };
   }
 
-  // Finalize run + sample files
-  const files = sampleFiles(runId, run.prompt);
-  await prisma.$transaction(async (tx) => {
-    await tx.generatedFile.deleteMany({ where: { runId } });
-    await tx.generatedFile.createMany({ data: files });
-    await tx.generationRun.update({
-      where: { id: runId },
-      data: { status: "completed", completedAt: new Date() },
+  // Generate the scaffold file set from the accumulated outputs
+  let files: { path: string; language: string | null }[] = [];
+  try {
+    const summary = priorOutputs
+      .map((p) => `## ${p.agent}\n${p.output}`)
+      .join("\n\n");
+    const generated = await generateFiles(runId, run.prompt, summary);
+    await prisma.$transaction(async (tx) => {
+      await tx.generatedFile.deleteMany({ where: { runId } });
+      await tx.generatedFile.createMany({
+        data: generated.map((f) => ({
+          runId,
+          path: f.path,
+          language: f.language,
+          content: f.content,
+          size: f.size,
+        })),
+      });
+      await tx.generationRun.update({
+        where: { id: runId },
+        data: { status: "completed", completedAt: new Date() },
+      });
+      await tx.project.update({
+        where: { id: run.projectId },
+        data: { status: "ready" },
+      });
     });
-    await tx.project.update({
-      where: { id: run.projectId },
-      data: { status: "ready" },
-    });
-  });
+    files = generated.map((f) => ({ path: f.path, language: f.language }));
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "File generation failed";
+    // The agent narrative still completed — surface files as failed but keep the run's work.
+    await markFailed(runId, run.projectId, `File scaffolding failed: ${message}`);
+    yield { type: "error", message: `File scaffolding failed: ${message}` };
+    yield { type: "run_done", status: "failed", error: message };
+    return;
+  }
 
   yield {
     type: "run_done",
     status: "completed",
-    files: files.map((f) => ({ path: f.path, language: f.language })),
+    files,
   };
 }

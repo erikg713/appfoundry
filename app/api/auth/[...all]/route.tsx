@@ -96,11 +96,3 @@ export const POST = async (req: Request) => callHandlerMethod("POST", req);
  *
  * export const runtime = "edge";
  */
-export const POST = async (req: Request) => {
-  try {
-    return await handler.POST(req);
-  } catch (err) {
-    console.error("Auth POST handler error:", err);
-    return new Response("Internal Server Error", { status: 500 });
-  }
-};

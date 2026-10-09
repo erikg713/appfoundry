@@ -1,5 +1,4 @@
 import { PrismaClient, Prisma } from "@prisma/client";
-import { createHmac, timingSafeEqual } from "node:crypto";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AppFoundry Pi — Hardened Prisma Database Client
@@ -16,7 +15,6 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 //  • Session-cookie validation
 //  • Sliding session expiration
 //  • Secure cookie defaults
-//  • Constant-time HS256 JWT validation
 //  • Graceful shutdown
 //  • PostgreSQL-friendly server-side implementation
 //
@@ -61,16 +59,6 @@ const DB_CONFIG = {
   healthTimeoutMs: parsePositiveInt(
     process.env.DB_HEALTH_TIMEOUT_MS,
     3_000
-  ),
-
-  sessionMaxAgeSec: parsePositiveInt(
-    process.env.SESSION_MAX_AGE_SEC,
-    60 * 60 * 24 * 7
-  ),
-
-  clockToleranceSec: parsePositiveInt(
-    process.env.JWT_CLOCK_TOLERANCE_SEC,
-    60
   ),
 
   auditEnabled:
@@ -171,22 +159,6 @@ export interface AuditEntry {
   changes?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
   createdAt: Date;
-}
-
-export interface SessionValidationResult {
-  valid: boolean;
-  session?: {
-    userId: string;
-    expiresAt: Date;
-    ip?: string | null;
-  };
-  error?: string;
-}
-
-export interface JwtValidationResult {
-  valid: boolean;
-  payload?: Record<string, unknown>;
-  error?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -518,7 +490,6 @@ function sanitizeAuditObject(
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function writeAuditLog(
-  _prisma: PrismaClient,
   entry: Omit<
     AuditEntry,
     "id" | "createdAt"
@@ -572,143 +543,108 @@ async function writeAuditLog(
 // Prisma client factory
 // ─────────────────────────────────────────────────────────────────────────────
 
-function createPrismaClient(): PrismaClient {
+function createPrismaClient() {
   if (!IS_SERVER) {
     throw new Error(
       "Prisma database client cannot be initialized in a browser environment."
     );
   }
 
-  const client = new PrismaClient({
-    log: DB_CONFIG.log,
-  });
-
   /**
-   * Prisma middleware.
-   *
-   * NOTE:
-   * Prisma versions that remove `$use` should migrate this logic to
-   * `$extends({ query: ... })`.
-   *
-   * This implementation remains compatible with Prisma versions exposing
-   * `$use`.
+   * Query middleware via `$extends` (Prisma 6 removed `$use`).
+   * Adds per-query timeouts, timing, and structured audit logging for
+   * auth-sensitive mutations.
    */
-  client.$use(
-    async (params, next) => {
-      const start =
-        performance.now();
+  const client = new PrismaClient({
+    log: [...DB_CONFIG.log] as ("query" | "error" | "warn")[],
+  }).$extends({
+    query: {
+      async $allOperations({ model, operation, args, query }) {
+        const start = performance.now();
 
-      const model =
-        params.model ?? "raw";
+        const modelName = model ?? "raw";
+        const action = String(operation);
+        const operationName = `${modelName}.${action}`;
+        const isAuthTable = model ? AUDIT_TABLES.has(model) : false;
 
-      const action =
-        String(params.action);
-
-      const operation =
-        `${model}.${action}`;
-
-      const isAuthTable =
-        AUDIT_TABLES.has(model);
-
-      try {
-        const result =
-          await withTimeout(
-            next(params),
+        try {
+          const result = await withTimeout(
+            query(args),
             DB_CONFIG.queryTimeoutMs,
-            operation
+            operationName
           );
 
-        const durationMs =
-          Math.round(
-            performance.now() - start
-          );
+          const durationMs = Math.round(performance.now() - start);
 
-        // ───────────────────────────────────────────────────────────────
-        // Audit auth-sensitive mutations.
-        // ───────────────────────────────────────────────────────────────
+          // ─────────────────────────────────────────────────────────────
+          // Audit auth-sensitive mutations.
+          // ─────────────────────────────────────────────────────────────
 
-        if (
-          isAuthTable &&
-          AUDIT_ACTIONS.has(action)
-        ) {
-          const resultObject =
-            result &&
-            typeof result === "object"
-              ? (result as Record<
-                  string,
-                  unknown
-                >)
-              : undefined;
+          if (isAuthTable && AUDIT_ACTIONS.has(action)) {
+            const resultObject =
+              result && typeof result === "object"
+                ? (result as Record<string, unknown>)
+                : undefined;
 
-          const recordId =
-            typeof resultObject?.id ===
-            "string"
-              ? resultObject.id
-              : typeof params.args
-                    ?.where?.id ===
-                  "string"
-                ? params.args.where.id
-                : "unknown";
+            const argsRecord = (args ?? {}) as Record<string, unknown>;
+            const where = argsRecord.where as
+              | Record<string, unknown>
+              | undefined;
+            const data = argsRecord.data as
+              | Record<string, unknown>
+              | undefined;
 
-          const actorId =
-            typeof params.args
-              ?.data?.updatedBy ===
-            "string"
-              ? params.args.data.updatedBy
-              : typeof params.args
-                    ?.data?.createdBy ===
-                  "string"
-                ? params.args.data.createdBy
-                : null;
+            const recordId =
+              typeof resultObject?.id === "string"
+                ? resultObject.id
+                : typeof where?.id === "string"
+                  ? where.id
+                  : "unknown";
 
-          /**
-           * Do not persist complete query arguments.
-           * They can contain passwords, tokens, and other secrets.
-           */
-          await writeAuditLog(
-            client,
-            {
-              table: model,
-              action:
-                action.toUpperCase() as AuditAction,
-              recordId,
-              actorId,
-              metadata: {
-                queryDurationMs:
-                  durationMs,
-                action,
-                model,
-                argumentKeys:
-                  Object.keys(
-                    params.args ?? {}
-                  ),
-              },
-            }
-          );
+            const actorId =
+              typeof data?.updatedBy === "string"
+                ? data.updatedBy
+                : typeof data?.createdBy === "string"
+                  ? data.createdBy
+                  : null;
+
+            /**
+             * Do not persist complete query arguments.
+             * They can contain passwords, tokens, and other secrets.
+             */
+            await writeAuditLog(
+              {
+                table: modelName,
+                action: action.toUpperCase() as AuditAction,
+                recordId,
+                actorId,
+                metadata: {
+                  queryDurationMs: durationMs,
+                  action,
+                  model: modelName,
+                  argumentKeys: Object.keys(argsRecord),
+                },
+              }
+            );
+          }
+
+          return result;
+        } catch (error) {
+          const durationMs = Math.round(performance.now() - start);
+
+          if (error instanceof DbTimeoutError) {
+            setDbState({
+              status: "query-timeout",
+              query: operationName,
+              durationMs,
+            });
+          }
+
+          throw error;
         }
-
-        return result;
-      } catch (error) {
-        const durationMs =
-          Math.round(
-            performance.now() - start
-          );
-
-        if (
-          error instanceof
-          DbTimeoutError
-        ) {
-          setDbState({
-            status: "query-timeout",
-            query: operation,
-            durationMs,
-          });
-        }
-
-        throw error;
-      }
-    }
-  );
+      },
+    },
+  });
 
   return client;
 }
@@ -719,7 +655,7 @@ function createPrismaClient(): PrismaClient {
 
 const globalForPrisma =
   globalThis as unknown as {
-    prisma?: PrismaClient;
+    prisma?: ReturnType<typeof createPrismaClient>;
   };
 
 export const prisma =
@@ -886,691 +822,6 @@ export async function disconnect(): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// JWT helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function decodeBase64UrlJson(
-  value: string
-): Record<string, unknown> {
-  const decoded =
-    Buffer.from(
-      value,
-      "base64url"
-    ).toString("utf8");
-
-  const parsed =
-    JSON.parse(decoded);
-
-  if (
-    !parsed ||
-    typeof parsed !== "object" ||
-    Array.isArray(parsed)
-  ) {
-    throw new Error(
-      "JWT JSON value is not an object"
-    );
-  }
-
-  return parsed as Record<
-    string,
-    unknown
-  >;
-}
-
-function safeTimingSafeEqual(
-  a: Buffer,
-  b: Buffer
-): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  return timingSafeEqual(a, b);
-}
-
-/**
- * Validate an HS256 JWT.
- *
- * SECURITY:
- * The previous implementation accepted RS256/ES256 but still calculated
- * an HMAC signature. That is cryptographically incorrect.
- *
- * This implementation explicitly supports HS256 only.
- *
- * If your identity provider signs tokens with RS256/ES256, use a proper JWT
- * library such as `jose` with the provider's JWKS/public key instead.
- */
-export async function validateServerToken(
-  token: string,
-  opts: {
-    secret: string;
-    issuer?: string;
-    audience?: string;
-    clockToleranceSec?: number;
-    requireExpiration?: boolean;
-    maxTokenLifetimeSec?: number;
-  }
-): Promise<JwtValidationResult> {
-  const {
-    secret,
-    issuer,
-    audience,
-    clockToleranceSec =
-      DB_CONFIG.clockToleranceSec,
-    requireExpiration = true,
-    maxTokenLifetimeSec,
-  } = opts;
-
-  if (!secret) {
-    return {
-      valid: false,
-      error:
-        "JWT validation secret is missing",
-    };
-  }
-
-  if (!token) {
-    return {
-      valid: false,
-      error: "Token is missing",
-    };
-  }
-
-  try {
-    // ───────────────────────────────────────────────────────────────
-    // Structural validation
-    // ───────────────────────────────────────────────────────────────
-
-    const parts =
-      token.split(".");
-
-    if (parts.length !== 3) {
-      return {
-        valid: false,
-        error: "Malformed JWT",
-      };
-    }
-
-    const [
-      headerB64,
-      payloadB64,
-      signatureB64,
-    ] = parts;
-
-    if (
-      !headerB64 ||
-      !payloadB64 ||
-      !signatureB64
-    ) {
-      return {
-        valid: false,
-        error: "Malformed JWT",
-      };
-    }
-
-    // ───────────────────────────────────────────────────────────────
-    // Decode
-    // ───────────────────────────────────────────────────────────────
-
-    const header =
-      decodeBase64UrlJson(
-        headerB64
-      );
-
-    const payload =
-      decodeBase64UrlJson(
-        payloadB64
-      );
-
-    // ───────────────────────────────────────────────────────────────
-    // Algorithm enforcement
-    // ───────────────────────────────────────────────────────────────
-
-    if (header.alg !== "HS256") {
-      return {
-        valid: false,
-        error:
-          "Unsupported JWT algorithm",
-      };
-    }
-
-    if (
-      header.typ !== undefined &&
-      header.typ !== "JWT"
-    ) {
-      return {
-        valid: false,
-        error:
-          "Invalid JWT type",
-      };
-    }
-
-    // ───────────────────────────────────────────────────────────────
-    // Signature
-    // ───────────────────────────────────────────────────────────────
-
-    const signingInput =
-      `${headerB64}.${payloadB64}`;
-
-    const expectedSignature =
-      createHmac(
-        "sha256",
-        secret
-      )
-        .update(signingInput)
-        .digest();
-
-    const providedSignature =
-      Buffer.from(
-        signatureB64,
-        "base64url"
-      );
-
-    if (
-      !safeTimingSafeEqual(
-        providedSignature,
-        expectedSignature
-      )
-    ) {
-      return {
-        valid: false,
-        error:
-          "Invalid signature",
-      };
-    }
-
-    // ───────────────────────────────────────────────────────────────
-    // Temporal claims
-    // ───────────────────────────────────────────────────────────────
-
-    const now =
-      Math.floor(
-        Date.now() / 1000
-      );
-
-    const iat =
-      payload.iat;
-
-    const exp =
-      payload.exp;
-
-    const nbf =
-      payload.nbf;
-
-    if (
-      iat !== undefined &&
-      typeof iat !== "number"
-    ) {
-      return {
-        valid: false,
-        error:
-          "Invalid iat claim",
-      };
-    }
-
-    if (
-      exp !== undefined &&
-      typeof exp !== "number"
-    ) {
-      return {
-        valid: false,
-        error:
-          "Invalid exp claim",
-      };
-    }
-
-    if (
-      nbf !== undefined &&
-      typeof nbf !== "number"
-    ) {
-      return {
-        valid: false,
-        error:
-          "Invalid nbf claim",
-      };
-    }
-
-    if (
-      iat !== undefined &&
-      typeof iat === "number" &&
-      iat >
-        now +
-          clockToleranceSec
-    ) {
-      return {
-        valid: false,
-        error:
-          "Token issued in the future",
-      };
-    }
-
-    if (
-      requireExpiration &&
-      typeof exp !== "number"
-    ) {
-      return {
-        valid: false,
-        error:
-          "Token expiration is required",
-      };
-    }
-
-    if (
-      typeof exp === "number" &&
-      exp <
-        now -
-          clockToleranceSec
-    ) {
-      return {
-        valid: false,
-        error:
-          "Token expired",
-      };
-    }
-
-    if (
-      typeof nbf === "number" &&
-      nbf >
-        now +
-          clockToleranceSec
-    ) {
-      return {
-        valid: false,
-        error:
-          "Token not yet valid",
-      };
-    }
-
-    if (
-      maxTokenLifetimeSec !==
-        undefined &&
-      typeof iat === "number" &&
-      typeof exp === "number"
-    ) {
-      if (
-        exp - iat >
-        maxTokenLifetimeSec
-      ) {
-        return {
-          valid: false,
-          error:
-            "Token lifetime exceeds allowed maximum",
-        };
-      }
-    }
-
-    // ───────────────────────────────────────────────────────────────
-    // Issuer
-    // ───────────────────────────────────────────────────────────────
-
-    if (
-      issuer !== undefined &&
-      payload.iss !== issuer
-    ) {
-      return {
-        valid: false,
-        error:
-          "Invalid issuer",
-      };
-    }
-
-    // ───────────────────────────────────────────────────────────────
-    // Audience
-    // ───────────────────────────────────────────────────────────────
-
-    if (
-      audience !== undefined
-    ) {
-      const tokenAudience =
-        payload.aud;
-
-      const audienceValid =
-        typeof tokenAudience ===
-          "string"
-          ? tokenAudience ===
-            audience
-          : Array.isArray(
-                tokenAudience
-              )
-            ? tokenAudience.includes(
-                audience
-              )
-            : false;
-
-      if (!audienceValid) {
-        return {
-          valid: false,
-          error:
-            "Invalid audience",
-        };
-      }
-    }
-
-    return {
-      valid: true,
-      payload,
-    };
-  } catch (error) {
-    return {
-      valid: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Token validation error",
-    };
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Session token hashing helper
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Hashing is optional.
- *
- * If your database stores raw session tokens, call
- * validateSessionCookie() directly.
- *
- * If your database stores SHA-256 hashes of session tokens, use:
- *
- * hashSessionToken(sessionToken)
- */
-export function hashSessionToken(
-  sessionToken: string
-): string {
-  return createHmac(
-    "sha256",
-    process.env.SESSION_TOKEN_PEPPER ??
-      ""
-  )
-    .update(sessionToken)
-    .digest("hex");
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Session validation
-// ─────────────────────────────────────────────────────────────────────────────
-
-export async function validateSessionCookie(
-  sessionToken: string,
-  opts?: {
-    maxAgeSec?: number;
-    requireIpMatch?: boolean;
-    requestIp?: string;
-    refresh?: boolean;
-  }
-): Promise<SessionValidationResult> {
-  const {
-    maxAgeSec =
-      DB_CONFIG.sessionMaxAgeSec,
-
-    requireIpMatch = false,
-
-    requestIp,
-
-    refresh = true,
-  } = opts ?? {};
-
-  if (!sessionToken) {
-    return {
-      valid: false,
-      error:
-        "Session token is missing",
-    };
-  }
-
-  if (
-    sessionToken.length < 16 ||
-    sessionToken.length > 512
-  ) {
-    return {
-      valid: false,
-      error:
-        "Invalid session token format",
-    };
-  }
-
-  try {
-    const session =
-      await withTimeout(
-        prisma.session.findUnique({
-          where: {
-            sessionToken,
-          },
-
-          include: {
-            user: {
-              select: {
-                id: true,
-              },
-            },
-          },
-        }),
-
-        DB_CONFIG.queryTimeoutMs,
-
-        "session.findUnique"
-      );
-
-    if (!session) {
-      return {
-        valid: false,
-        error:
-          "Session not found",
-      };
-    }
-
-    const now =
-      new Date();
-
-    if (
-      session.expires <= now
-    ) {
-      return {
-        valid: false,
-        error:
-          "Session expired",
-      };
-    }
-
-    // ───────────────────────────────────────────────────────────────
-    // Optional IP binding
-    // ───────────────────────────────────────────────────────────────
-
-    if (
-      requireIpMatch &&
-      requestIp
-    ) {
-      const sessionIp =
-        "ipAddress" in session
-          ? (
-              session as typeof session & {
-                ipAddress?: string | null;
-              }
-            ).ipAddress
-          : null;
-
-      if (
-        !sessionIp ||
-        sessionIp !== requestIp
-      ) {
-        return {
-          valid: false,
-          error:
-            "IP mismatch",
-        };
-      }
-    }
-
-    // ───────────────────────────────────────────────────────────────
-    // Sliding expiration
-    // ───────────────────────────────────────────────────────────────
-    //
-    // Only refresh once the remaining lifetime has fallen below half of
-    // the configured maximum.
-    //
-    // This avoids updating the database on every request.
-    // ───────────────────────────────────────────────────────────────
-
-    let effectiveExpires =
-      session.expires;
-
-    if (refresh) {
-      const refreshThreshold =
-        new Date(
-          Date.now() +
-            (maxAgeSec *
-              1000) /
-              2
-        );
-
-      if (
-        session.expires <=
-        refreshThreshold
-      ) {
-        effectiveExpires =
-          new Date(
-            Date.now() +
-              maxAgeSec *
-                1000
-          );
-
-        await withTimeout(
-          prisma.session.update({
-            where: {
-              sessionToken,
-            },
-
-            data: {
-              expires:
-                effectiveExpires,
-            },
-          }),
-
-          DB_CONFIG.queryTimeoutMs,
-
-          "session.update"
-        );
-      }
-    }
-
-    return {
-      valid: true,
-
-      session: {
-        userId:
-          session.userId,
-
-        expiresAt:
-          effectiveExpires,
-
-        ip:
-          "ipAddress" in session
-            ? (
-                session as typeof session & {
-                  ipAddress?: string | null;
-                }
-              ).ipAddress ??
-              null
-            : null,
-      },
-    };
-  } catch (error) {
-    return {
-      valid: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Session validation error",
-    };
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Secure cookie configuration
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface HardenedCookieOptions {
-  name: string;
-
-  options: {
-    httpOnly: true;
-    secure: boolean;
-    sameSite:
-      | "strict"
-      | "lax"
-      | "none";
-    path: "/";
-    maxAge: number;
-    domain?: string;
-  };
-}
-
-export function getHardenedCookieOpts(
-  maxAgeSec: number,
-  overrides?: Partial<{
-    name: string;
-    sameSite:
-      | "strict"
-      | "lax"
-      | "none";
-    domain:
-      | string
-      | undefined;
-  }>
-): HardenedCookieOptions {
-  const isProd =
-    process.env.NODE_ENV ===
-    "production";
-
-  const sameSite =
-    overrides?.sameSite ??
-    "lax";
-
-  /**
-   * SameSite=None requires Secure cookies.
-   */
-  const secure =
-    isProd ||
-    sameSite === "none";
-
-  return {
-    name:
-      overrides?.name ??
-      "appfoundry.session",
-
-    options: {
-      httpOnly: true,
-
-      secure,
-
-      sameSite,
-
-      path: "/",
-
-      maxAge: Math.max(
-        1,
-        Math.floor(maxAgeSec)
-      ),
-
-      domain:
-        overrides?.domain ??
-        undefined,
-    },
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Convenience cookie configuration
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function getDefaultSessionCookieOpts(): HardenedCookieOptions {
-  return getHardenedCookieOpts(
-    DB_CONFIG.sessionMaxAgeSec
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Database health check
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1732,9 +983,6 @@ export const dbConfig = {
 
   maxConnectRetries:
     DB_CONFIG.maxConnectRetries,
-
-  sessionMaxAgeSec:
-    DB_CONFIG.sessionMaxAgeSec,
 
   auditEnabled:
     DB_CONFIG.auditEnabled,

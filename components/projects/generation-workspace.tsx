@@ -114,6 +114,7 @@ export function GenerationWorkspace({
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<GeneratedFile | null>(null);
+  const [copied, setCopied] = useState(false);
   const [liveOutput, setLiveOutput] = useState<{ agent: string; text: string } | null>(
     null
   );
@@ -302,6 +303,26 @@ export function GenerationWorkspace({
       ? 100
       : Math.round((completedSteps / Math.max(totalSteps, 1)) * 100);
 
+  function formatDurationMs(start: string | Date | null, end: string | Date | null) {
+    if (!start) return null;
+    const s = new Date(start).getTime();
+    const e = end ? new Date(end).getTime() : Date.now();
+    const secs = Math.max(0, Math.round((e - s) / 1000));
+    if (secs < 60) return `${secs}s`;
+    return `${Math.floor(secs / 60)}m ${secs % 60}s`;
+  }
+
+  async function handleCopyFile() {
+    if (!selectedFile) return;
+    try {
+      await navigator.clipboard.writeText(selectedFile.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard unavailable — ignore
+    }
+  }
+
   return (
     <div className="mt-8 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -396,12 +417,22 @@ export function GenerationWorkspace({
               </span>
             </div>
 
-            <div className="h-1.5 bg-slate-100 rounded-full mb-5 overflow-hidden">
+            <div className="h-1.5 bg-slate-100 rounded-full mb-3 overflow-hidden">
               <div
                 className="h-full bg-violet-500 rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
+
+            <p className="text-xs text-slate-400 mb-4">
+              {run.startedAt
+                ? `Started ${new Date(run.startedAt).toLocaleString()}`
+                : "Not started yet"}
+              {run.startedAt &&
+                ` · ${formatDurationMs(run.startedAt, run.completedAt) ?? ""}`}
+              {run.files.length > 0 &&
+                ` · ${run.files.length} file${run.files.length === 1 ? "" : "s"}`}
+            </p>
 
             <ol className="space-y-3">
               {run.steps.map((step) => (
@@ -550,13 +581,22 @@ export function GenerationWorkspace({
                   <div className="sm:col-span-3 p-4 overflow-auto">
                     {selectedFile ? (
                       <>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-mono text-slate-500">
+                        <div className="flex items-center justify-between mb-2 gap-2">
+                          <span className="text-xs font-mono text-slate-500 truncate">
                             {selectedFile.path}
                           </span>
-                          <span className="text-xs text-slate-400">
-                            {selectedFile.language ?? "text"}
-                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs text-slate-400">
+                              {selectedFile.language ?? "text"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleCopyFile}
+                              className="text-xs text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 rounded px-2 py-0.5 transition"
+                            >
+                              {copied ? "Copied!" : "Copy"}
+                            </button>
+                          </div>
                         </div>
                         <pre className="text-xs leading-relaxed bg-slate-950 text-slate-100 rounded-xl p-4 overflow-x-auto max-h-72">
                           <code>{selectedFile.content}</code>
